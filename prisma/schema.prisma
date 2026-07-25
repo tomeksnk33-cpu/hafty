@@ -1,0 +1,141 @@
+// Baza haftów — schemat danych.
+// Dokumentacja: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Klient, dla którego wykonywane są hafty.
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  company   String?
+  phone     String?
+  email     String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  realizations Realization[]
+
+  @@index([name])
+}
+
+/// Pozycja katalogu nici — producent + numer jednoznacznie identyfikują nić.
+model Thread {
+  id        String   @id @default(cuid())
+  brand     String
+  number    String
+  colorName String?
+  /// Kolor w formacie #rrggbb, tylko do podglądu na liście.
+  hex       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  realizations RealizationThread[]
+  markers      ThreadMarker[]
+
+  @@unique([brand, number])
+  @@index([number])
+  @@index([colorName])
+}
+
+/// Pojedyncza realizacja (wykonany haft).
+model Realization {
+  id          String   @id @default(cuid())
+  name        String
+  executedAt  DateTime @db.Date
+  clientId    String?
+  productType String?
+  widthMm     Int?
+  heightMm    Int?
+  stitchCount Int?
+  quantity    Int      @default(1)
+  /// Cena jednostkowa w groszach. Wartość realizacji = unitPriceGr * quantity.
+  unitPriceGr Int?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  client      Client?             @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  photos      Photo[]
+  designFiles DesignFile[]
+  threads     RealizationThread[]
+
+  @@index([name])
+  @@index([executedAt])
+  @@index([clientId])
+  @@index([productType])
+}
+
+/// Zdjęcie realizacji przechowywane w Vercel Blob.
+model Photo {
+  id            String   @id @default(cuid())
+  realizationId String
+  url           String
+  /// Ścieżka w Blob — potrzebna do usunięcia pliku razem z rekordem.
+  pathname      String
+  position      Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  realization Realization   @relation(fields: [realizationId], references: [id], onDelete: Cascade)
+  markers     ThreadMarker[]
+
+  @@index([realizationId, position])
+}
+
+/// Punkt na zdjęciu wskazujący, gdzie użyto danej nici.
+/// Rozwiązuje problem nici o zbliżonych kolorach, których nie da się
+/// rozróżnić na fotografii.
+model ThreadMarker {
+  id       String @id @default(cuid())
+  photoId  String
+  threadId String
+  /// Pozycja w procentach szerokości i wysokości zdjęcia (0–100), dzięki
+  /// czemu znacznik trzyma się tego samego miejsca przy każdej wielkości podglądu.
+  x        Float
+  y        Float
+
+  photo  Photo  @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([photoId])
+  @@index([threadId])
+}
+
+/// Plik maszynowy (.dst/.pes/...) przechowywany w Vercel Blob.
+model DesignFile {
+  id            String   @id @default(cuid())
+  realizationId String
+  url           String
+  pathname      String
+  filename      String
+  sizeBytes     Int
+  createdAt     DateTime @default(now())
+
+  realization Realization @relation(fields: [realizationId], references: [id], onDelete: Cascade)
+
+  @@index([realizationId])
+}
+
+/// Nić użyta w realizacji.
+model RealizationThread {
+  realizationId String
+  threadId      String
+  /// Kolejność wyboru — z niej biorą się numery 1, 2, 3… pokazywane przy
+  /// nici i na znacznikach na zdjęciu. Musi być stała, inaczej numeracja
+  /// zmieniałaby się między odsłonami strony.
+  position      Int     @default(0)
+  note          String?
+
+  realization Realization @relation(fields: [realizationId], references: [id], onDelete: Cascade)
+  thread      Thread      @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@id([realizationId, threadId])
+  @@index([threadId])
+}
