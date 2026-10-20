@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { PageHeader, Stat } from "@/components/page-header";
+import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatMoney, monthName, plural } from "@/lib/format";
 
@@ -23,6 +24,8 @@ function monthRange(year: number, month: number) {
 }
 
 export default async function MonthlySummaryPage(props: PageProps<"/podsumowania">) {
+  await requireAdmin();
+
   const { rok } = await props.searchParams;
 
   const [oldest, newest] = await Promise.all([

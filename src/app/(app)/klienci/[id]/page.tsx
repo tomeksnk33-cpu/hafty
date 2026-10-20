@@ -4,12 +4,14 @@ import { notFound } from "next/navigation";
 import { DeleteButton } from "@/components/delete-button";
 import { PageHeader, Stat } from "@/components/page-header";
 import { RealizationCard, realizationCardSelect } from "@/components/realization-card";
+import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate, formatMoney, plural } from "@/lib/format";
 
 import { deleteClient } from "../actions";
 
 export default async function ClientSummaryPage(props: PageProps<"/klienci/[id]">) {
+  const user = await requireManager();
   const { id } = await props.params;
 
   const client = await prisma.client.findUnique({ where: { id } });
@@ -77,7 +79,7 @@ export default async function ClientSummaryPage(props: PageProps<"/klienci/[id]"
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Realizacje" value={realizations.length} />
         <Stat label="Sztuki" value={pieces} />
-        <Stat label="Wartość" value={formatMoney(value)} />
+        {user.canSeeMoney ? <Stat label="Wartość" value={formatMoney(value)} /> : null}
         <Stat
           label="Okres współpracy"
           value={
@@ -152,6 +154,7 @@ export default async function ClientSummaryPage(props: PageProps<"/klienci/[id]"
                 key={realization.id}
                 realization={realization}
                 showClient={false}
+                showPrice={user.canSeeMoney}
               />
             ))}
           </div>

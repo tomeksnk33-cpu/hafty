@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/page-header";
+import { requireManager } from "@/lib/auth";
 
 import { createRealization } from "../actions";
 import { emptyRealization } from "../defaults";
@@ -6,6 +7,8 @@ import { loadFormOptions } from "../form-options";
 import { RealizationForm } from "../realization-form";
 
 export default async function NewRealizationPage(props: PageProps<"/realizacje/nowa">) {
+  const user = await requireManager();
+
   const [{ klient }, { clients, productTypes }] = await Promise.all([
     props.searchParams,
     loadFormOptions(),
@@ -24,6 +27,7 @@ export default async function NewRealizationPage(props: PageProps<"/realizacje/n
         productTypes={productTypes}
         submitLabel="Zapisz realizację"
         cancelHref="/realizacje"
+        showPrice={user.canSeeMoney}
       />
     </div>
   );

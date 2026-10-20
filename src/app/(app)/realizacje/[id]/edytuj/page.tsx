@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/page-header";
+import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { toDateInputValue } from "@/lib/format";
 
@@ -11,6 +12,7 @@ import { RealizationForm } from "../../realization-form";
 export default async function EditRealizationPage(
   props: PageProps<"/realizacje/[id]/edytuj">,
 ) {
+  const user = await requireManager();
   const { id } = await props.params;
 
   const [realization, { clients, productTypes }] = await Promise.all([
@@ -52,8 +54,10 @@ export default async function EditRealizationPage(
           heightMm: realization.heightMm?.toString() ?? "",
           stitchCount: realization.stitchCount?.toString() ?? "",
           quantity: realization.quantity.toString(),
+          // Cena trafia do przeglądarki tylko wtedy, gdy osoba ma ją widzieć —
+          // wartości propsów komponentu klienckiego są widoczne w kodzie strony.
           unitPriceGr:
-            realization.unitPriceGr === null
+            !user.canSeeMoney || realization.unitPriceGr === null
               ? ""
               : (realization.unitPriceGr / 100).toFixed(2).replace(".", ","),
           notes: realization.notes ?? "",
@@ -83,6 +87,7 @@ export default async function EditRealizationPage(
         productTypes={productTypes}
         submitLabel="Zapisz zmiany"
         cancelHref={`/realizacje/${realization.id}`}
+        showPrice={user.canSeeMoney}
       />
     </div>
   );

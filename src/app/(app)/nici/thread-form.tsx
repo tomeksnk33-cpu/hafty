@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
 
 import { FormError, FormField, SubmitButton } from "@/components/form-field";
+import { useFormSubmit } from "@/lib/use-form-submit";
 import type { FormState } from "@/lib/validation";
 
 export type ThreadDefaults = {
@@ -31,10 +31,10 @@ export function ThreadForm({
   submitLabel: string;
   cancelHref: string;
 }) {
-  const [state, formAction] = useActionState(action, null);
+  const { state, onSubmit, pending } = useFormSubmit(action);
 
   return (
-    <form action={formAction} className="card space-y-5 p-6">
+    <form onSubmit={onSubmit} className="card space-y-5 p-6">
       <FormError message={state?.message} />
 
       <div className="grid gap-5 sm:grid-cols-2">
@@ -96,7 +96,7 @@ export function ThreadForm({
       </FormField>
 
       <div className="flex gap-2 pt-1">
-        <SubmitButton label={submitLabel} />
+        <SubmitButton label={submitLabel} pending={pending} />
         <Link href={cancelHref} className="btn-secondary">
           Anuluj
         </Link>

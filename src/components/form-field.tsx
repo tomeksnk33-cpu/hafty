@@ -5,15 +5,19 @@ import { useFormStatus } from "react-dom";
 export function SubmitButton({
   label,
   pendingLabel = "Zapisuję…",
+  pending,
 }: {
   label: string;
   pendingLabel?: string;
+  /** Dla formularzy wysyłanych przez `useFormSubmit` — `useFormStatus` ich nie widzi. */
+  pending?: boolean;
 }) {
-  const { pending } = useFormStatus();
+  const status = useFormStatus();
+  const busy = pending ?? status.pending;
 
   return (
-    <button type="submit" className="btn-primary" disabled={pending}>
-      {pending ? pendingLabel : label}
+    <button type="submit" className="btn-primary" disabled={busy}>
+      {busy ? pendingLabel : label}
     </button>
   );
 }

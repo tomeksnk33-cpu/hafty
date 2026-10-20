@@ -2,23 +2,27 @@
 
 import { redirect } from "next/navigation";
 
-import { delayFailedLogin, endSession, isPasswordCorrect, startSession } from "@/lib/auth";
+import { authenticate, delayFailedLogin, endSession, startSession } from "@/lib/auth";
 import type { FormState } from "@/lib/validation";
 
 export async function logIn(_state: FormState, formData: FormData): Promise<FormState> {
+  const login = String(formData.get("login") ?? "");
   const password = String(formData.get("password") ?? "");
   const wanted = String(formData.get("powrot") ?? "");
 
-  if (password === "") {
-    return { message: "Podaj hasło." };
+  if (login.trim() === "" || password === "") {
+    return { message: "Podaj login i hasło." };
   }
 
-  if (!isPasswordCorrect(password)) {
+  const userId = await authenticate(login, password);
+
+  if (!userId) {
     await delayFailedLogin();
-    return { message: "Nieprawidłowe hasło." };
+    // Jeden komunikat dla złego loginu i złego hasła — nie zdradzamy, które było złe.
+    return { message: "Nieprawidłowy login lub hasło." };
   }
 
-  await startSession();
+  await startSession(userId);
 
   // Tylko ścieżki wewnętrzne — `powrot` przychodzi z adresu URL.
   const target = wanted.startsWith("/") && !wanted.startsWith("//") ? wanted : "/";

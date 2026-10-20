@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { clientSchema, fieldValue, toFormState, type FormState } from "@/lib/validation";
 
@@ -20,6 +21,8 @@ export async function createClient(
   _state: FormState,
   formData: FormData,
 ): Promise<FormState> {
+  await requireManager();
+
   const parsed = readForm(formData);
 
   if (!parsed.success) {
@@ -39,6 +42,8 @@ export async function updateClient(
   _state: FormState,
   formData: FormData,
 ): Promise<FormState> {
+  await requireManager();
+
   const parsed = readForm(formData);
 
   if (!parsed.success) {
@@ -59,6 +64,8 @@ export async function updateClient(
  * więc historia haftów nie znika razem z kontaktem.
  */
 export async function deleteClient(id: string) {
+  await requireManager();
+
   await prisma.client.delete({ where: { id } });
 
   revalidatePath("/klienci");

@@ -4,12 +4,14 @@ import { notFound } from "next/navigation";
 import { DeleteButton } from "@/components/delete-button";
 import { PageHeader } from "@/components/page-header";
 import { RealizationCard, realizationCardSelect } from "@/components/realization-card";
+import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { plural } from "@/lib/format";
 
 import { deleteThread } from "../actions";
 
 export default async function ThreadPage(props: PageProps<"/nici/[id]">) {
+  const user = await requireUser();
   const { id } = await props.params;
 
   const thread = await prisma.thread.findUnique({ where: { id } });
@@ -28,9 +30,11 @@ export default async function ThreadPage(props: PageProps<"/nici/[id]">) {
         title={`${thread.brand} ${thread.number}`}
         subtitle={thread.colorName ?? undefined}
         action={
-          <Link href={`/nici/${thread.id}/edytuj`} className="btn-secondary">
-            Edytuj
-          </Link>
+          user.canManage ? (
+            <Link href={`/nici/${thread.id}/edytuj`} className="btn-secondary">
+              Edytuj
+            </Link>
+          ) : undefined
         }
       />
 
@@ -58,19 +62,25 @@ export default async function ThreadPage(props: PageProps<"/nici/[id]">) {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {realizations.map((realization) => (
-              <RealizationCard key={realization.id} realization={realization} />
+              <RealizationCard
+                key={realization.id}
+                realization={realization}
+                showPrice={user.canSeeMoney}
+              />
             ))}
           </div>
         )}
       </section>
 
-      <div className="mt-10 border-t border-line pt-6">
-        <DeleteButton
-          action={deleteThread.bind(null, thread.id)}
-          label="Usuń nić z katalogu"
-          confirmText={`Usunąć nić ${thread.brand} ${thread.number}? Zniknie z ${realizations.length} ${plural(realizations.length, "realizacji", "realizacji", "realizacji")}, ale same realizacje zostaną.`}
-        />
-      </div>
+      {user.canManage ? (
+        <div className="mt-10 border-t border-line pt-6">
+          <DeleteButton
+            action={deleteThread.bind(null, thread.id)}
+            label="Usuń nić z katalogu"
+            confirmText={`Usunąć nić ${thread.brand} ${thread.number}? Zniknie z ${realizations.length} ${plural(realizations.length, "realizacji", "realizacji", "realizacji")}, ale same realizacje zostaną.`}
+          />
+        </div>
+      ) : null}
     </>
   );
 }

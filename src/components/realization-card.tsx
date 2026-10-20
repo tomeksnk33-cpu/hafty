@@ -16,13 +16,18 @@ export type RealizationCardData = {
 export function RealizationCard({
   realization,
   showClient = true,
+  showPrice = false,
 }: {
   realization: RealizationCardData;
   showClient?: boolean;
+  /** Domyślnie ukryta — kwoty widzi tylko administrator. */
+  showPrice?: boolean;
 }) {
   const cover = realization.photos[0];
   const total =
-    realization.unitPriceGr === null ? null : realization.unitPriceGr * realization.quantity;
+    !showPrice || realization.unitPriceGr === null
+      ? null
+      : realization.unitPriceGr * realization.quantity;
 
   return (
     <Link

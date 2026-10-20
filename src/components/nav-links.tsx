@@ -3,20 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const links = [
-  { href: "/", label: "Pulpit" },
-  { href: "/realizacje", label: "Realizacje" },
-  { href: "/klienci", label: "Klienci" },
-  { href: "/nici", label: "Nici" },
-  { href: "/podsumowania", label: "Podsumowania" },
-] as const;
+export type NavItem = { href: string; label: string };
 
-export function NavLinks() {
+export function NavLinks({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
 
   return (
     <nav className="flex gap-1 overflow-x-auto">
-      {links.map((link) => {
+      {items.map((link) => {
         const active =
           link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
 

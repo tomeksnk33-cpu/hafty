@@ -2,11 +2,13 @@ import Link from "next/link";
 
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { SearchField } from "@/components/search-field";
+import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { plural } from "@/lib/format";
 import type { Prisma } from "@/generated/prisma/client";
 
 export default async function ThreadsPage(props: PageProps<"/nici">) {
+  const user = await requireUser();
   const { q } = await props.searchParams;
   const query = typeof q === "string" ? q.trim() : "";
 
@@ -41,9 +43,11 @@ export default async function ThreadsPage(props: PageProps<"/nici">) {
           query ? " pasujących do wyszukiwania" : ""
         }`}
         action={
-          <Link href="/nici/nowa" className="btn-primary">
-            Dodaj nić
-          </Link>
+          user.canManage ? (
+            <Link href="/nici/nowa" className="btn-primary">
+              Dodaj nić
+            </Link>
+          ) : undefined
         }
       />
 
@@ -60,10 +64,12 @@ export default async function ThreadsPage(props: PageProps<"/nici">) {
           hint={
             query
               ? "Spróbuj wpisać sam numer, np. 1147."
-              : "Dodaj nici, których używasz — potem będziesz je tylko wybierać przy realizacji."
+              : user.canManage
+                ? "Dodaj nici, których używasz — potem będziesz je tylko wybierać przy realizacji."
+                : "Nici dodaje administrator albo osoba z uprawnieniami."
           }
           action={
-            query ? null : (
+            query || !user.canManage ? null : (
               <Link href="/nici/nowa" className="btn-primary">
                 Dodaj nić
               </Link>

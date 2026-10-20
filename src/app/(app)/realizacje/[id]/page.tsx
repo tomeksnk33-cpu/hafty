@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { DeleteButton } from "@/components/delete-button";
 import { PageHeader } from "@/components/page-header";
 import { RealizationGallery } from "@/components/realization-gallery";
+import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate, formatFileSize, formatMoney } from "@/lib/format";
 
@@ -19,6 +20,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 export default async function RealizationPage(props: PageProps<"/realizacje/[id]">) {
+  const user = await requireUser();
   const { id } = await props.params;
 
   const realization = await prisma.realization.findUnique({
@@ -64,9 +66,11 @@ export default async function RealizationPage(props: PageProps<"/realizacje/[id]
         title={realization.name}
         subtitle={formatDate(realization.executedAt)}
         action={
-          <Link href={`/realizacje/${realization.id}/edytuj`} className="btn-secondary">
-            Edytuj
-          </Link>
+          user.canManage ? (
+            <Link href={`/realizacje/${realization.id}/edytuj`} className="btn-secondary">
+              Edytuj
+            </Link>
+          ) : undefined
         }
       />
 
@@ -82,12 +86,16 @@ export default async function RealizationPage(props: PageProps<"/realizacje/[id]
             <dl className="divide-y divide-line">
               <Row label="Klient">
                 {realization.client ? (
-                  <Link
-                    href={`/klienci/${realization.client.id}`}
-                    className="text-accent hover:underline"
-                  >
-                    {realization.client.name}
-                  </Link>
+                  user.canManage ? (
+                    <Link
+                      href={`/klienci/${realization.client.id}`}
+                      className="text-accent hover:underline"
+                    >
+                      {realization.client.name}
+                    </Link>
+                  ) : (
+                    realization.client.name
+                  )
                 ) : (
                   <span className="text-muted">haft własny</span>
                 )}
@@ -96,8 +104,12 @@ export default async function RealizationPage(props: PageProps<"/realizacje/[id]
               <Row label="Data wykonania">{formatDate(realization.executedAt)}</Row>
               <Row label="Ilość sztuk">{realization.quantity}</Row>
 
-              <Row label="Cena za sztukę">{formatMoney(realization.unitPriceGr)}</Row>
-              <Row label="Wartość realizacji">{formatMoney(total)}</Row>
+              {user.canSeeMoney ? (
+                <>
+                  <Row label="Cena za sztukę">{formatMoney(realization.unitPriceGr)}</Row>
+                  <Row label="Wartość realizacji">{formatMoney(total)}</Row>
+                </>
+              ) : null}
 
               <Row label="Typ produktu">
                 {realization.productType ?? <span className="text-muted">—</span>}
@@ -148,13 +160,15 @@ export default async function RealizationPage(props: PageProps<"/realizacje/[id]
         </div>
       </div>
 
-      <div className="mt-10 border-t border-line pt-6">
-        <DeleteButton
-          action={deleteRealization.bind(null, realization.id)}
-          label="Usuń realizację"
-          confirmText={`Usunąć realizację „${realization.name}”? Zdjęcia i pliki projektu również zostaną skasowane.`}
-        />
-      </div>
+      {user.canManage ? (
+        <div className="mt-10 border-t border-line pt-6">
+          <DeleteButton
+            action={deleteRealization.bind(null, realization.id)}
+            label="Usuń realizację"
+            confirmText={`Usunąć realizację „${realization.name}”? Zdjęcia i pliki projektu również zostaną skasowane.`}
+          />
+        </div>
+      ) : null}
     </>
   );
 }

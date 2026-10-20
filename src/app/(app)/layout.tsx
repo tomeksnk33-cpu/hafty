@@ -1,10 +1,38 @@
 import Link from "next/link";
 
-import { NavLinks } from "@/components/nav-links";
+import { NavLinks, type NavItem } from "@/components/nav-links";
+import { requireUser, type SessionUser } from "@/lib/auth";
 
 import { logOut } from "../login/actions";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function navigationFor(user: SessionUser): NavItem[] {
+  const items: NavItem[] = [
+    { href: "/", label: "Pulpit" },
+    { href: "/realizacje", label: "Realizacje" },
+    { href: "/dziennik", label: "Dziennik" },
+  ];
+
+  if (user.canManage) items.push({ href: "/klienci", label: "Klienci" });
+
+  items.push({ href: "/nici", label: "Nici" });
+
+  if (user.isAdmin) {
+    items.push(
+      { href: "/rozliczenia", label: "Rozliczenia" },
+      { href: "/podsumowania", label: "Podsumowania" },
+      { href: "/pracownicy", label: "Pracownicy" },
+    );
+  }
+
+  return items;
+}
+
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  // Layout służy tu do pokazania, kto jest zalogowany. Właściwe sprawdzenia
+  // uprawnień są w każdej stronie i akcji — layout nie renderuje się ponownie
+  // przy przechodzeniu między stronami.
+  const user = await requireUser();
+
   return (
     <>
       <header className="border-b border-line bg-surface">
@@ -14,14 +42,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </Link>
 
           <div className="order-3 w-full sm:order-none sm:w-auto">
-            <NavLinks />
+            <NavLinks items={navigationFor(user)} />
           </div>
 
-          <form action={logOut} className="ml-auto">
-            <button type="submit" className="text-sm text-muted hover:text-ink">
-              Wyloguj
-            </button>
-          </form>
+          <div className="ml-auto flex items-center gap-4">
+            <Link
+              href="/konto"
+              title="Moje konto i zmiana hasła"
+              className="max-w-40 truncate text-sm text-muted hover:text-ink"
+            >
+              {user.name}
+            </Link>
+
+            <form action={logOut}>
+              <button type="submit" className="text-sm text-muted hover:text-ink">
+                Wyloguj
+              </button>
+            </form>
+          </div>
         </div>
       </header>
 

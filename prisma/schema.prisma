@@ -10,6 +10,52 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+/// Konto osoby logującej się do aplikacji.
+model User {
+  id                    String   @id @default(cuid())
+  /// Zapisywany małymi literami, żeby "Anna" i "anna" były tym samym loginem.
+  login                 String   @unique
+  name                  String
+  /// Format `scrypt:sól:hash`, ten sam co w scripts/haslo.mjs.
+  passwordHash          String
+  role                  Role     @default(EMPLOYEE)
+  /// Pozwala dodawać i edytować hafty, klientów i nici bez uprawnień administratora.
+  canManageRealizations Boolean  @default(false)
+  /// Konta się nie usuwa, tylko wyłącza — wpisy w dzienniku muszą zostać.
+  active                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  workEntries WorkEntry[]
+}
+
+/// Wpis w dzienniku pracy: kto, którego dnia, przy której realizacji i ile sztuk.
+model WorkEntry {
+  id              String   @id @default(cuid())
+  userId          String
+  /// NULL po usunięciu realizacji — wpis zostaje, a nazwę bierzemy z `realizationName`.
+  realizationId   String?
+  /// Nazwa realizacji z chwili wpisu, żeby rozliczenie przetrwało jej usunięcie.
+  realizationName String
+  workDate        DateTime @db.Date
+  quantity        Int
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  realization Realization? @relation(fields: [realizationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, workDate])
+  @@index([workDate])
+  @@index([realizationId])
+}
+
 /// Klient, dla którego wykonywane są hafty.
 model Client {
   id        String   @id @default(cuid())
@@ -66,6 +112,7 @@ model Realization {
   photos      Photo[]
   designFiles DesignFile[]
   threads     RealizationThread[]
+  workEntries WorkEntry[]
 
   @@index([name])
   @@index([executedAt])

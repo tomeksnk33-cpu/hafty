@@ -2,11 +2,14 @@ import Link from "next/link";
 
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { SearchField } from "@/components/search-field";
+import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { plural } from "@/lib/format";
 import type { Prisma } from "@/generated/prisma/client";
 
 export default async function ClientsPage(props: PageProps<"/klienci">) {
+  await requireManager();
+
   const { q } = await props.searchParams;
   const query = typeof q === "string" ? q.trim() : "";
 

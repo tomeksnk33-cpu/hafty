@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
 
-import { isLoggedIn } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 
 import { LoginForm } from "./login-form";
 
 export default async function LoginPage(props: PageProps<"/login">) {
-  if (await isLoggedIn()) {
+  // Pełne sprawdzenie konta, nie samego ciasteczka — inaczej osoba z wyłączonym
+  // kontem (albo ze starym ciasteczkiem) wpadałaby w pętlę /login ↔ /.
+  if (await getCurrentUser()) {
     redirect("/");
   }
 

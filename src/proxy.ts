@@ -1,12 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { isValidSessionToken, SESSION_COOKIE } from "@/lib/session";
+import { readSessionToken, SESSION_COOKIE } from "@/lib/session";
 
 // W Next 16 `middleware.ts` nazywa się `proxy.ts`, a eksportowana funkcja `proxy`.
+//
+// To tylko szybka bramka: sprawdza podpis ciasteczka, bez zaglądania do bazy.
+// Rola i aktywność konta są sprawdzane w każdej stronie i akcji (lib/auth.ts).
 export async function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
 
-  if (await isValidSessionToken(token)) {
+  if (await readSessionToken(token)) {
     return NextResponse.next();
   }
 

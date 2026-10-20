@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import type { MarkerInput } from "@/lib/markers";
 import { removeFiles } from "@/lib/storage";
@@ -136,13 +137,17 @@ export async function createRealization(
   _state: FormState,
   formData: FormData,
 ): Promise<FormState> {
+  // Akcje serwerowe to publiczne endpointy — uprawnienia sprawdzamy tu, a nie
+  // tylko przez ukrycie przycisku w interfejsie.
+  const user = await requireManager();
+
   const parsed = readForm(formData);
 
   if (!parsed.success) {
     return toFormState(parsed.error);
   }
 
-  const { threadIds, clientId, ...fields } = parsed.data;
+  const { threadIds, clientId, unitPriceGr, ...fields } = parsed.data;
   const photos = readUploads(formData, "photos");
   const designFiles = readUploads(formData, "designFiles");
   const markers = readMarkers(formData);
@@ -155,6 +160,8 @@ export async function createRealization(
   const realization = await prisma.realization.create({
     data: {
       ...fields,
+      // Ceny ustala tylko administrator, także gdy ktoś dośle pole ręcznie.
+      unitPriceGr: user.canSeeMoney ? unitPriceGr : null,
       clientId: validClientId,
       photos: {
         create: photos.map((photo, index) => ({
@@ -190,13 +197,15 @@ export async function updateRealization(
   _state: FormState,
   formData: FormData,
 ): Promise<FormState> {
+  const user = await requireManager();
+
   const parsed = readForm(formData);
 
   if (!parsed.success) {
     return toFormState(parsed.error);
   }
 
-  const { threadIds, clientId, ...fields } = parsed.data;
+  const { threadIds, clientId, unitPriceGr, ...fields } = parsed.data;
   const photos = readUploads(formData, "photos");
   const designFiles = readUploads(formData, "designFiles");
   const markers = readMarkers(formData);
@@ -237,6 +246,9 @@ export async function updateRealization(
       where: { id },
       data: {
         ...fields,
+        // Osoba bez wglądu w ceny nie widzi tego pola w formularzu, więc dostaje
+        // pustą wartość — bez tego warunku każda jej edycja kasowałaby cenę.
+        ...(user.canSeeMoney ? { unitPriceGr } : {}),
         clientId: validClientId,
         photos: {
           create: photos.map((photo, index) => ({
@@ -274,6 +286,8 @@ export async function updateRealization(
 }
 
 export async function deleteRealization(id: string) {
+  await requireManager();
+
   const realization = await prisma.realization.findUnique({
     where: { id },
     select: {

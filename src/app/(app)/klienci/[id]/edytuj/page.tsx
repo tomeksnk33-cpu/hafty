@@ -1,12 +1,15 @@
 import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/page-header";
+import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 import { updateClient } from "../../actions";
 import { ClientForm } from "../../client-form";
 
 export default async function EditClientPage(props: PageProps<"/klienci/[id]/edytuj">) {
+  await requireManager();
+
   const { id } = await props.params;
   const client = await prisma.client.findUnique({ where: { id } });
 

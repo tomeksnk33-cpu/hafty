@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { Prisma } from "@/generated/prisma/client";
+import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { fieldValue, threadSchema, toFormState, type FormState } from "@/lib/validation";
 
@@ -29,6 +30,8 @@ export async function createThread(
   _state: FormState,
   formData: FormData,
 ): Promise<FormState> {
+  await requireManager();
+
   const parsed = readForm(formData);
 
   if (!parsed.success) {
@@ -53,6 +56,8 @@ export async function updateThread(
   _state: FormState,
   formData: FormData,
 ): Promise<FormState> {
+  await requireManager();
+
   const parsed = readForm(formData);
 
   if (!parsed.success) {
@@ -74,6 +79,8 @@ export async function updateThread(
 }
 
 export async function deleteThread(id: string) {
+  await requireManager();
+
   // Powiązania z realizacjami znikają kaskadowo, same realizacje zostają.
   await prisma.thread.delete({ where: { id } });
 
@@ -101,6 +108,8 @@ export async function createThreadInline(input: {
   colorName: string;
   hex: string;
 }): Promise<{ thread: QuickThread } | { error: string }> {
+  await requireManager();
+
   const parsed = threadSchema.safeParse(input);
 
   if (!parsed.success) {
@@ -133,6 +142,8 @@ export async function createThreadInline(input: {
 
 /** Podpowiedzi nici do pola wyszukiwania w formularzu realizacji. */
 export async function searchThreads(query: string): Promise<QuickThread[]> {
+  await requireManager();
+
   const trimmed = query.trim();
 
   if (trimmed.length === 0) {

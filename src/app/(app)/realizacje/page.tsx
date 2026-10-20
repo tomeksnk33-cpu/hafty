@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { RealizationCard, realizationCardSelect } from "@/components/realization-card";
+import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatMoney, plural } from "@/lib/format";
 import type { Prisma } from "@/generated/prisma/client";
@@ -23,6 +24,7 @@ function toUtcDate(value: string) {
 }
 
 export default async function RealizationsPage(props: PageProps<"/realizacje">) {
+  const user = await requireUser();
   const searchParams = await props.searchParams;
 
   const values = {
@@ -131,12 +133,16 @@ export default async function RealizationsPage(props: PageProps<"/realizacje">) 
         subtitle={
           total === 0
             ? "Brak wyników"
-            : `${total} ${plural(total, "realizacja", "realizacje", "realizacji")} · ${pieces} szt. · ${formatMoney(value)}`
+            : `${total} ${plural(total, "realizacja", "realizacje", "realizacji")} · ${pieces} szt.${
+                user.canSeeMoney ? ` · ${formatMoney(value)}` : ""
+              }`
         }
         action={
-          <Link href="/realizacje/nowa" className="btn-primary">
-            Dodaj realizację
-          </Link>
+          user.canManage ? (
+            <Link href="/realizacje/nowa" className="btn-primary">
+              Dodaj realizację
+            </Link>
+          ) : undefined
         }
       />
 
@@ -157,10 +163,12 @@ export default async function RealizationsPage(props: PageProps<"/realizacje">) 
           hint={
             filtered
               ? "Spróbuj skrócić frazę albo wyczyścić część filtrów."
-              : "Dodaj pierwszy haft — zdjęcie, datę, klienta i użyte nici."
+              : user.canManage
+                ? "Dodaj pierwszy haft — zdjęcie, datę, klienta i użyte nici."
+                : "Hafty dodaje administrator albo osoba z uprawnieniami."
           }
           action={
-            filtered ? null : (
+            filtered || !user.canManage ? null : (
               <Link href="/realizacje/nowa" className="btn-primary">
                 Dodaj realizację
               </Link>
@@ -171,7 +179,11 @@ export default async function RealizationsPage(props: PageProps<"/realizacje">) 
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {realizations.map((realization) => (
-              <RealizationCard key={realization.id} realization={realization} />
+              <RealizationCard
+                key={realization.id}
+                realization={realization}
+                showPrice={user.canSeeMoney}
+              />
             ))}
           </div>
 

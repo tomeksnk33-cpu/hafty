@@ -63,8 +63,20 @@ export function toDateInputValue(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
+const warsawDay = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Warsaw",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * Dzisiejsza data "RRRR-MM-DD" w czasie warszawskim. Serwer chodzi w UTC, więc
+ * `new Date().toISOString()` między północą a 1:00/2:00 w nocy dałoby wczorajszą
+ * datę — a od niej zależy m.in. okno edycji wpisów w dzienniku pracy.
+ */
 export function todayInputValue() {
-  return new Date().toISOString().slice(0, 10);
+  return warsawDay.format(new Date());
 }
 
 /** Rozmiar pliku w formie czytelnej dla człowieka. */

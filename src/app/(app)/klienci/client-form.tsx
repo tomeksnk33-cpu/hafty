@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
 
 import { FormError, FormField, SubmitButton } from "@/components/form-field";
+import { useFormSubmit } from "@/lib/use-form-submit";
 import type { FormState } from "@/lib/validation";
 
 export type ClientDefaults = {
@@ -33,10 +33,10 @@ export function ClientForm({
   submitLabel: string;
   cancelHref: string;
 }) {
-  const [state, formAction] = useActionState(action, null);
+  const { state, onSubmit, pending } = useFormSubmit(action);
 
   return (
-    <form action={formAction} className="card space-y-5 p-6">
+    <form onSubmit={onSubmit} className="card space-y-5 p-6">
       <FormError message={state?.message} />
 
       <FormField label="Nazwa klienta" name="name" errors={state?.errors}>
@@ -94,7 +94,7 @@ export function ClientForm({
       </FormField>
 
       <div className="flex gap-2 pt-1">
-        <SubmitButton label={submitLabel} />
+        <SubmitButton label={submitLabel} pending={pending} />
         <Link href={cancelHref} className="btn-secondary">
           Anuluj
         </Link>

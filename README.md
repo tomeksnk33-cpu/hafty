@@ -1,7 +1,8 @@
 # Baza haftów
 
 Archiwum wykonanych haftów: realizacje ze zdjęciami, klienci, katalog nici,
-wyszukiwarka i podsumowania. Cała aplikacja jest za jednym hasłem.
+wyszukiwarka, podsumowania i dziennik pracy pracowników. Dostęp mają tylko
+zalogowane osoby, każda na własnym koncie.
 
 ## Co jest w środku
 
@@ -23,6 +24,30 @@ wyszukiwarka i podsumowania. Cała aplikacja jest za jednym hasłem.
   miesiące wybranego roku, z przejściem z każdego miesiąca do przefiltrowanej
   historii. Realizacje bez ceny są liczone, ale nie wchodzą do kwoty i strona
   wprost to sygnalizuje.
+- **Konta i uprawnienia** — każdy loguje się swoim loginem i hasłem (zob. niżej).
+- **Dziennik pracy** — pracownik wpisuje, którego dnia przy której realizacji
+  pracował i ile sztuk zrobił. Wpisy może dodawać i poprawiać przez 7 dni
+  (liczone razem z dzisiejszym, w czasie warszawskim); starsze zmienia tylko
+  administrator.
+- **Rozliczenia** (administrator) — tabela „pracownik × dzień" dla wybranego
+  miesiąca, a po kliknięciu nazwiska pełna lista wpisów z możliwością poprawiania
+  i dodawania wpisów za pracownika.
+
+### Role
+
+| | Pracownik | Pracownik z uprawnieniem do haftów | Administrator |
+|---|:---:|:---:|:---:|
+| Własny dziennik pracy | ✓ | ✓ | ✓ |
+| Przeglądanie realizacji i nici | ✓ | ✓ | ✓ |
+| Ceny, wartości, podsumowania | | | ✓ |
+| Dodawanie i edycja haftów, klientów, nici | | ✓ | ✓ |
+| Rozliczenia, konta pracowników | | | ✓ |
+
+Uprawnienia sprawdza serwer w każdej stronie, akcji i endpoincie — ukrycie
+przycisku w menu to tylko wygoda, nie zabezpieczenie. Osoba z uprawnieniem do
+haftów nie widzi pola ceny, a jej edycja haftu **nie nadpisuje** ceny ustawionej
+przez administratora. Konta się nie usuwa, tylko wyłącza (wpisy zostają), a
+wyłączenie działa od razu — także na już zalogowaną osobę.
 
 ## Stack
 
@@ -41,7 +66,9 @@ Skopiuj `.env.example` do `.env` i uzupełnij:
 
 - `DATABASE_URL` — adres bazy.
 - `SESSION_SECRET` — losowy ciąg (min. 32 znaki).
-- `APP_PASSWORD_HASH` — wynik `npm run haslo "twoje-haslo"`.
+- `APP_PASSWORD_HASH` — wynik `npm run haslo "twoje-haslo"`. Służy **tylko do
+  pierwszego logowania** (patrz niżej); potem hasła są w bazie.
+- `ADMIN_LOGIN` — opcjonalnie, login pierwszego administratora (domyślnie `admin`).
 - `BLOB_READ_WRITE_TOKEN` — zostaw pusty lokalnie.
 
 Zastosuj schemat i wystartuj:
@@ -55,6 +82,15 @@ npm run dev
 ```
 
 Aplikacja stoi na http://localhost:3000.
+
+### Pierwsze logowanie
+
+Dopóki w bazie nie ma żadnego konta, zalogujesz się loginem `admin` (albo
+`ADMIN_LOGIN`) i hasłem, z którego powstał `APP_PASSWORD_HASH`. To zakłada
+pierwsze konto administratora — od tej chwili baza jest jedynym źródłem haseł,
+a zmienna przestaje być używana (można ją usunąć). Potem w zakładce
+**Pracownicy** zakładasz pozostałe konta, a w **Moje konto** (kliknij swoje imię
+w nagłówku) zmieniasz hasło.
 
 ### Skrypty
 
@@ -92,13 +128,22 @@ prosto z telefonu i nie zapychać darmowego limitu magazynu.
    `BLOB_READ_WRITE_TOKEN`.
 6. Deploy. Komenda builda sama zastosuje migracje na bazie Neona.
 
-Po pierwszym wdrożeniu zmień hasło: wygeneruj nowy hash i podmień
-`APP_PASSWORD_HASH` w panelu Vercel, potem zrób redeploy.
+Po wdrożeniu zaloguj się jako `admin` dotychczasowym hasłem, od razu zmień je w
+**Moje konto** i załóż konta pracownikom. Zmiana hasła w bazie nie wymaga już
+redeployu ani ruszania zmiennych w Vercel.
+
+Migracje dodające konta i dziennik pracy są addytywne (nowe tabele) — nie
+zmieniają istniejących danych: realizacji, klientów ani katalogu nici.
 
 ## Uwagi
 
 - Adresy plików w Vercel Blob są publiczne, choć nieodgadywalne — kto ma link,
-  zobaczy zdjęcie bez logowania. Reszta aplikacji jest chroniona hasłem.
+  zobaczy zdjęcie bez logowania. Reszta aplikacji wymaga zalogowania.
+- Po zmianie hasła przez administratora albo przez samą osobę **inne jej sesje
+  nie wygasają** — działają do wylogowania albo 30 dni. Wyłączenie konta
+  natomiast przerywa dostęp natychmiast.
+- Po błędnym haśle odpowiedź jest tylko opóźniana o ułamek sekundy; na serverless
+  nie ma tu pełnego limitu prób.
 - Usunięcie klienta **nie kasuje** jego realizacji — tracą tylko przypisanie.
   Usunięcie realizacji kasuje jej zdjęcia i pliki także z magazynu.
 - Pliki wgrane w formularzu, który nigdy nie został zapisany, zostają

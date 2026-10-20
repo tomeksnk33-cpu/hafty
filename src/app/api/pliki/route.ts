@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { isLoggedIn } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { saveFile } from "@/lib/storage";
 import { checkFile, type UploadKind } from "@/lib/uploads";
 
@@ -9,13 +9,20 @@ import { checkFile, type UploadKind } from "@/lib/uploads";
  * Pliki lecą po jednym, żeby każdy mieścił się w limicie ciała żądania na
  * Vercel (~4,5 MB) niezależnie od tego, ile ich jest w formularzu.
  *
- * Trasa jest chroniona przez proxy.ts, ale sesję sprawdzamy też tutaj —
- * endpoint zapisujący pliki nie powinien polegać wyłącznie na konfiguracji
- * matchera.
+ * Trasa jest chroniona przez proxy.ts, ale konto i uprawnienia sprawdzamy też
+ * tutaj — endpoint zapisujący pliki nie powinien polegać wyłącznie na
+ * konfiguracji matchera. Pliki wgrywa się tylko z formularza realizacji, więc
+ * wymagamy prawa do zarządzania hafami.
  */
 export async function POST(request: Request) {
-  if (!(await isLoggedIn())) {
+  const user = await getCurrentUser();
+
+  if (!user) {
     return NextResponse.json({ error: "Brak dostępu." }, { status: 401 });
+  }
+
+  if (!user.canManage) {
+    return NextResponse.json({ error: "Nie masz uprawnień do wgrywania plików." }, { status: 403 });
   }
 
   const formData = await request.formData();

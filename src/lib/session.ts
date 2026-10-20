@@ -20,22 +20,31 @@ function getSecret() {
   return new TextEncoder().encode(secret);
 }
 
-export async function createSessionToken() {
+/** Token niesie tylko id konta. Rolę i status sprawdzamy w bazie przy każdym żądaniu. */
+export async function createSessionToken(userId: string) {
   return new SignJWT({})
     .setProtectedHeader({ alg: "HS256" })
-    .setSubject("wlasciciel")
+    .setSubject(userId)
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE}s`)
     .sign(getSecret());
 }
 
-export async function isValidSessionToken(token: string | undefined) {
-  if (!token) return false;
+/**
+ * Zwraca id konta z poprawnego tokenu albo `null`. Tokeny z czasów jednego
+ * wspólnego hasła miały temat "wlasciciel" — odrzucamy je, żeby wszyscy
+ * zalogowali się już na własne konta.
+ */
+export async function readSessionToken(token: string | undefined) {
+  if (!token) return null;
 
   try {
-    await jwtVerify(token, getSecret(), { algorithms: ["HS256"] });
-    return true;
+    const { payload } = await jwtVerify(token, getSecret(), { algorithms: ["HS256"] });
+
+    if (!payload.sub || payload.sub === "wlasciciel") return null;
+
+    return { userId: payload.sub };
   } catch {
-    return false;
+    return null;
   }
 }

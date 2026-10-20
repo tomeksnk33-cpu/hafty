@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useState } from "react";
 
 import type { QuickThread } from "@/app/(app)/nici/actions";
 import { DesignFileUploader, PhotoUploader } from "@/components/file-uploads";
@@ -10,6 +10,7 @@ import { ThreadMarkerEditor } from "@/components/thread-marker-editor";
 import { ThreadPicker } from "@/components/thread-picker";
 import type { MarkerInput } from "@/lib/markers";
 import type { UploadedFile } from "@/lib/uploads";
+import { useFormSubmit } from "@/lib/use-form-submit";
 import type { FormState } from "@/lib/validation";
 
 import type { RealizationDefaults } from "./defaults";
@@ -21,6 +22,7 @@ export function RealizationForm({
   productTypes,
   submitLabel,
   cancelHref,
+  showPrice,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   defaults: RealizationDefaults;
@@ -28,8 +30,10 @@ export function RealizationForm({
   productTypes: string[];
   submitLabel: string;
   cancelHref: string;
+  /** Pole ceny widzi tylko administrator; akcja i tak ignoruje je u pozostałych. */
+  showPrice: boolean;
 }) {
-  const [state, formAction] = useActionState(action, null);
+  const { state, onSubmit, pending } = useFormSubmit(action);
 
   // Zdjęcia, nici i znaczniki są ze sobą powiązane, więc ich stan trzyma
   // formularz, a nie poszczególne komponenty.
@@ -48,7 +52,7 @@ export function RealizationForm({
   );
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form onSubmit={onSubmit} className="space-y-6">
       <FormError message={state?.message} />
 
       <input type="hidden" name="photos" value={JSON.stringify(photos)} />
@@ -119,21 +123,23 @@ export function RealizationForm({
             />
           </FormField>
 
-          <FormField
-            label="Cena za sztukę"
-            name="unitPriceGr"
-            hint="W złotych, np. 149,90. Wartość realizacji policzy się sama."
-            errors={state?.errors}
-          >
-            <input
-              id="unitPriceGr"
+          {showPrice ? (
+            <FormField
+              label="Cena za sztukę"
               name="unitPriceGr"
-              inputMode="decimal"
-              defaultValue={defaults.unitPriceGr}
-              className="input"
-              placeholder="0,00"
-            />
-          </FormField>
+              hint="W złotych, np. 149,90. Wartość realizacji policzy się sama."
+              errors={state?.errors}
+            >
+              <input
+                id="unitPriceGr"
+                name="unitPriceGr"
+                inputMode="decimal"
+                defaultValue={defaults.unitPriceGr}
+                className="input"
+                placeholder="0,00"
+              />
+            </FormField>
+          ) : null}
         </div>
       </section>
 
@@ -254,7 +260,7 @@ export function RealizationForm({
       </section>
 
       <div className="flex gap-2">
-        <SubmitButton label={submitLabel} />
+        <SubmitButton label={submitLabel} pending={pending} />
         <Link href={cancelHref} className="btn-secondary">
           Anuluj
         </Link>

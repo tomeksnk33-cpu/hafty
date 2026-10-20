@@ -6,6 +6,10 @@ import { parseMoney } from "@/lib/format";
 export type FormState = {
   message?: string;
   errors?: Record<string, string[]>;
+  /** Akcja się udała i nie przekierowała — formularz pokazuje potwierdzenie. */
+  ok?: boolean;
+  /** Zmienia się przy każdym udanym zapisie; formularz używa tego jako `key` do wyczyszczenia pól. */
+  savedAt?: number;
 } | null;
 
 const text = (max: number) => z.string().trim().max(max, `Maksymalnie ${max} znaków`);
@@ -98,6 +102,74 @@ export const realizationSchema = z.object({
   notes: optionalText(5000),
 
   threadIds: z.array(z.string().min(1)).max(200, "Za dużo nici w jednej realizacji"),
+});
+
+const MAX_PASSWORD = 200;
+
+/** Login: małe litery, cyfry, kropka, podkreślenie i myślnik — bez polskich znaków i spacji. */
+const loginField = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3, "Login musi mieć co najmniej 3 znaki")
+  .max(40, "Login może mieć najwyżej 40 znaków")
+  .regex(/^[a-z0-9._-]+$/, "Login: tylko litery a–z, cyfry, kropka, myślnik i podkreślenie");
+
+const newPasswordField = z
+  .string()
+  .min(8, "Hasło musi mieć co najmniej 8 znaków")
+  .max(MAX_PASSWORD, `Hasło może mieć najwyżej ${MAX_PASSWORD} znaków`);
+
+const roleField = z.enum(["ADMIN", "EMPLOYEE"], "Wybierz rolę");
+
+export const userCreateSchema = z.object({
+  name: text(100).min(1, "Podaj imię i nazwisko"),
+  login: loginField,
+  password: newPasswordField,
+  role: roleField,
+  canManageRealizations: z.boolean(),
+});
+
+export const userUpdateSchema = z.object({
+  name: text(100).min(1, "Podaj imię i nazwisko"),
+  login: loginField,
+  /** Puste pole = bez zmiany hasła. */
+  password: z.string().max(MAX_PASSWORD, `Hasło może mieć najwyżej ${MAX_PASSWORD} znaków`),
+  role: roleField,
+  canManageRealizations: z.boolean(),
+  active: z.boolean(),
+});
+
+export const passwordChangeSchema = z
+  .object({
+    current: z.string().min(1, "Podaj obecne hasło"),
+    next: newPasswordField,
+    repeat: z.string(),
+  })
+  .refine((value) => value.next === value.repeat, {
+    path: ["repeat"],
+    message: "Hasła nie są takie same",
+  });
+
+/** Wpis w dzienniku pracy. `workDate` sprawdzamy dalej w akcji, bo zależy od "dzisiaj" i roli. */
+export const workEntrySchema = z.object({
+  workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Podaj datę"),
+  realizationId: z.string().max(40),
+  quantity: z
+    .string()
+    .overwrite((value) => value.replace(/\s/g, ""))
+    .superRefine((value, ctx) => {
+      if (!/^\d+$/.test(value) || Number(value) < 1) {
+        ctx.addIssue({ code: "custom", message: "Ilość sztuk musi być liczbą co najmniej 1" });
+        return;
+      }
+
+      if (Number(value) > 100_000) {
+        ctx.addIssue({ code: "custom", message: "Ilość sztuk jest za duża" });
+      }
+    })
+    .transform(Number),
+  notes: optionalText(1000),
 });
 
 /** Znacznik nici na zdjęciu. `photo` to pathname, bo zdjęcie nie ma jeszcze id. */
