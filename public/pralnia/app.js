@@ -283,11 +283,21 @@ async function flushPending(verbose) {
   renderBanner(); loadHistory();
   return ok;
 }
+// model telefonu (Chrome na Androidzie podaje go tylko przez userAgentData)
+async function deviceHints() {
+  try {
+    const d = navigator.userAgentData;
+    if (!d || !d.getHighEntropyValues) return undefined;
+    const v = await d.getHighEntropyValues(["model", "platformVersion"]);
+    return { model: v.model || undefined, platform: v.platform || undefined, platformVersion: v.platformVersion || undefined };
+  } catch (e) { return undefined; }
+}
 async function finishRoute(spoken) {
   if (!local.route.length) { if (spoken) await say("Trasa jest pusta"); else alert("Trasa jest pusta."); return; }
   if (!spoken && !confirm("Zakończyć trasę i wysłać podsumowanie?")) return;
   stop();
-  local.pending.push({ id: local.routeId || newId(), worker: local.worker, date: new Date().toISOString(), route: local.route.map(({ client, item, qty }) => ({ client, item, qty })) });
+  const device = await deviceHints();
+  local.pending.push({ id: local.routeId || newId(), worker: local.worker, date: new Date().toISOString(), device, route: local.route.map(({ client, item, qty }) => ({ client, item, qty })) });
   local.route = []; local.routeId = null; mode = "client"; currentClient = null; save(); ui();
   const ok = await flushPending(true);
   const msg = ok ? "Koniec trasy. Podsumowanie wysłane." : "Koniec trasy. Nie udało się wysłać, spróbuję ponownie.";
