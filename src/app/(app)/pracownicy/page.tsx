@@ -20,6 +20,7 @@ export default async function EmployeesPage() {
       canUseEmbroidery: true,
       canUseLaundry: true,
       canUseTimeclock: true,
+      canUseAttendance: true,
       active: true,
       _count: { select: { workEntries: true } },
     },

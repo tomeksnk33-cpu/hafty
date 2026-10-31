@@ -4,8 +4,9 @@ Archiwum wykonanych haftów: realizacje ze zdjęciami, klienci, katalog nici,
 wyszukiwarka, podsumowania i dziennik pracy pracowników. Dostęp mają tylko
 zalogowane osoby, każda na własnym koncie.
 
-W tej samej aplikacji działają też **Trasa pralni** (`/pralnia`) i
-**Rejestrator czasu pracy** (`/rejestrator`). Po zalogowaniu pojawia się ekran
+W tej samej aplikacji działają też **Trasa pralni** (`/pralnia`),
+**Rejestrator czasu pracy** (`/rejestrator`) i **Lista Obecności Brzozów**
+(`/obecnosc`). Po zalogowaniu pojawia się ekran
 wyboru z aplikacjami, do których konto ma dostęp. Wszystkie części korzystają
 z jednej bazy PostgreSQL i tych samych kont pracowników.
 
@@ -57,6 +58,22 @@ raport dnia mailem (z CSV) i eksport CSV.
   pracowników i możliwość innej metody rejestracji. Zapisywane są tylko wektory
   cech twarzy, nie zdjęcia. Biblioteka: @vladmandic/face-api (MIT,
   `public/rejestrator/LICENSE-face-api.txt`).
+
+## Lista Obecności Brzozów
+
+Pod `/obecnosc`: jedno urządzenie w zakładzie (telefon lub tablet) słucha zdań
+„Nazywam się Jan Kowalski, rozpoczynam pracę” i „…, kończę pracę”. Rozpoznaje
+osobę z listy po imieniu i nazwisku, mówi, kogo rozpoznało, zapisuje godzinę
+serwera i wysyła mail (te same zmienne `SMTP_*` i `MAIL_TO` co trasa pralni).
+
+- Dostęp: konto z zaznaczonym „Lista Obecności Brzozów” (domyślnie wyłączone).
+  Na urządzenie w zakładzie najlepiej założyć osobne konto tylko z tą aplikacją.
+- Administrator widzi dodatkowo zakładki **Grafik** (kalendarz miesiąca z
+  godzinami każdego dnia, szczegóły dnia, poprawki i ręczne wpisy, podsumowanie
+  miesiąca) oraz **Pracownicy** (lista osób i inne formy imion).
+- Osoby na liście nie muszą mieć kont. Dane są w tabelach `AttendancePerson`
+  i `AttendanceShift`. Kod: `public/obecnosc/`, `src/app/api/obecnosc/`,
+  `src/lib/obecnosc/`.
 
 Mail wymaga zmiennych środowiskowych (patrz `.env.example`):
 

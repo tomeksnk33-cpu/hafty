@@ -31,6 +31,13 @@ const apps = [
     mark: "R",
     markClass: "bg-[#15803d] text-white",
   },
+  {
+    href: "/obecnosc",
+    title: "Lista Obecności Brzozów",
+    description: "Głosowe rozpoczęcie i zakończenie pracy, mail z godziną i grafik godzin.",
+    mark: "O",
+    markClass: "bg-[#b45309] text-white",
+  },
 ] as const;
 
 export default async function AppChooserPage() {
@@ -40,6 +47,7 @@ export default async function AppChooserPage() {
     "/pulpit": user.canUseEmbroidery,
     "/pralnia": user.canUseLaundry,
     "/rejestrator": user.canUseTimeclock,
+    "/obecnosc": user.canUseAttendance,
   };
   const allowed = apps.filter((app) => access[app.href]);
 
@@ -69,7 +77,7 @@ export default async function AppChooserPage() {
         </p>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {allowed.map((app) => (
           // Zwykły <a>, nie <Link>: trasa pralni to osobna, statyczna strona.
           <a

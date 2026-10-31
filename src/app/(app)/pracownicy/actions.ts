@@ -40,6 +40,7 @@ function readForm(formData: FormData) {
     canUseEmbroidery: formData.get("canUseEmbroidery") === "on",
     canUseLaundry: formData.get("canUseLaundry") === "on",
     canUseTimeclock: formData.get("canUseTimeclock") === "on",
+    canUseAttendance: formData.get("canUseAttendance") === "on",
     active: formData.get("active") === "on",
   };
 }
@@ -50,8 +51,9 @@ function accessProblem(data: {
   canUseEmbroidery: boolean;
   canUseLaundry: boolean;
   canUseTimeclock: boolean;
+  canUseAttendance: boolean;
 }): FormState | null {
-  if (data.role === Role.ADMIN || data.canUseEmbroidery || data.canUseLaundry || data.canUseTimeclock) {
+  if (data.role === Role.ADMIN || data.canUseEmbroidery || data.canUseLaundry || data.canUseTimeclock || data.canUseAttendance) {
     return null;
   }
 

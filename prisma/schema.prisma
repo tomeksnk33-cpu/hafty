@@ -32,6 +32,8 @@ model User {
   canUseLaundry         Boolean  @default(true)
   /// Dostęp do rejestratora czasu pracy (/rejestrator). Administrator ma zawsze.
   canUseTimeclock       Boolean  @default(true)
+  /// Dostęp do listy obecności Brzozów (/obecnosc). Administrator ma zawsze.
+  canUseAttendance      Boolean  @default(false)
   /// Konta się nie usuwa, tylko wyłącza — wpisy w dzienniku muszą zostać.
   active                Boolean  @default(true)
   createdAt             DateTime @default(now())
@@ -335,4 +337,37 @@ model RcpSetting {
 model RcpVersion {
   key   String @id
   value Int    @default(0)
+}
+
+// ---------- Lista Obecności Brzozów (/obecnosc) ----------
+
+/// Osoba na liście obecności. Nie musi mieć konta: aplikację obsługuje jedno
+/// urządzenie w zakładzie, a pracownik przedstawia się głosem.
+model AttendancePerson {
+  id        String   @id @default(cuid())
+  name      String
+  /// Inne formy imienia i nazwiska, które rozpoznawanie mowy może usłyszeć.
+  aliases   String[] @default([])
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  shifts AttendanceShift[]
+}
+
+/// Jeden okres pracy: od „rozpoczynam pracę” do „kończę pracę”.
+model AttendanceShift {
+  id          String    @id @default(cuid())
+  personId    String
+  startedAt   DateTime
+  endedAt     DateTime?
+  startDevice String?
+  endDevice   String?
+  /// Wpis poprawiony ręcznie przez administratora.
+  edited      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  person AttendancePerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([startedAt])
+  @@index([personId, endedAt])
 }
