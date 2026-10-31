@@ -2,13 +2,13 @@ import Link from "next/link";
 
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { SearchField } from "@/components/search-field";
-import { requireUser } from "@/lib/auth";
+import { requireEmbroideryUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { plural } from "@/lib/format";
 import type { Prisma } from "@/generated/prisma/client";
 
 export default async function ThreadsPage(props: PageProps<"/nici">) {
-  const user = await requireUser();
+  const user = await requireEmbroideryUser();
   const { q } = await props.searchParams;
   const query = typeof q === "string" ? q.trim() : "";
 

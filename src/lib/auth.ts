@@ -23,6 +23,10 @@ export type SessionUser = {
   name: string;
   role: Role;
   isAdmin: boolean;
+  /** Dostęp do bazy haftów. */
+  canUseEmbroidery: boolean;
+  /** Dostęp do trasy pralni. */
+  canUseLaundry: boolean;
   /** Dodawanie i edycja haftów, klientów i nici. */
   canManage: boolean;
   /** Ceny, wartości i podsumowania finansowe. */
@@ -35,8 +39,11 @@ function toSessionUser(user: {
   name: string;
   role: Role;
   canManageRealizations: boolean;
+  canUseEmbroidery: boolean;
+  canUseLaundry: boolean;
 }): SessionUser {
   const isAdmin = user.role === Role.ADMIN;
+  const canUseEmbroidery = isAdmin || user.canUseEmbroidery;
 
   return {
     id: user.id,
@@ -44,7 +51,9 @@ function toSessionUser(user: {
     name: user.name,
     role: user.role,
     isAdmin,
-    canManage: isAdmin || user.canManageRealizations,
+    canUseEmbroidery,
+    canUseLaundry: isAdmin || user.canUseLaundry,
+    canManage: isAdmin || (canUseEmbroidery && user.canManageRealizations),
     canSeeMoney: isAdmin,
   };
 }
@@ -155,6 +164,8 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
       name: true,
       role: true,
       canManageRealizations: true,
+      canUseEmbroidery: true,
+      canUseLaundry: true,
       active: true,
     },
   });
@@ -176,9 +187,18 @@ export async function requireUser() {
   return user;
 }
 
+/** Wymaga dostępu do bazy haftów. Bez niego — powrót do ekranu wyboru aplikacji. */
+export async function requireEmbroideryUser() {
+  const user = await requireUser();
+
+  if (!user.canUseEmbroidery) redirect("/?brak=hafty");
+
+  return user;
+}
+
 /** Wymaga prawa do dodawania i edycji haftów, klientów i nici. */
 export async function requireManager() {
-  const user = await requireUser();
+  const user = await requireEmbroideryUser();
 
   if (!user.canManage) redirect("/pulpit?brak=uprawnien");
 

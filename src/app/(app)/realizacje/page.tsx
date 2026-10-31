@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { RealizationCard, realizationCardSelect } from "@/components/realization-card";
-import { requireUser } from "@/lib/auth";
+import { requireEmbroideryUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatMoney, plural } from "@/lib/format";
 import type { Prisma } from "@/generated/prisma/client";
@@ -24,7 +24,7 @@ function toUtcDate(value: string) {
 }
 
 export default async function RealizationsPage(props: PageProps<"/realizacje">) {
-  const user = await requireUser();
+  const user = await requireEmbroideryUser();
   const searchParams = await props.searchParams;
 
   const values = {

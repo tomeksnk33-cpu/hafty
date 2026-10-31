@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { LaundryCatalogKind } from "@/generated/prisma/enums";
-import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { laundryUser } from "@/lib/pralnia/access";
 
 // Wspólna lista klientów i asortymentu pralni. Tak jak w dawnej aplikacji z
 // PIN-em, zmieniać ją może każdy zalogowany pracownik — kierowcy dopisują
@@ -26,9 +26,6 @@ const entrySchema = z.object({
 const createSchema = entrySchema.extend({ kind: kindSchema });
 const updateSchema = entrySchema.extend({ id: z.string().min(1) });
 
-const unauthorized = () =>
-  NextResponse.json({ error: "Zaloguj się ponownie." }, { status: 401 });
-
 async function readJson(request: Request) {
   try {
     return await request.json();
@@ -42,8 +39,8 @@ function invalid(error: z.ZodError) {
 }
 
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return unauthorized();
+  const { user, denied } = await laundryUser();
+  if (denied) return denied;
 
   const rows = await prisma.laundryCatalogEntry.findMany({
     orderBy: { name: "asc" },
@@ -61,8 +58,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) return unauthorized();
+  const { denied } = await laundryUser();
+  if (denied) return denied;
 
   const parsed = createSchema.safeParse(await readJson(request));
   if (!parsed.success) return invalid(parsed.error);
@@ -77,8 +74,8 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) return unauthorized();
+  const { denied } = await laundryUser();
+  if (denied) return denied;
 
   const parsed = updateSchema.safeParse(await readJson(request));
   if (!parsed.success) return invalid(parsed.error);
@@ -94,8 +91,8 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) return unauthorized();
+  const { denied } = await laundryUser();
+  if (denied) return denied;
 
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Brak id." }, { status: 400 });

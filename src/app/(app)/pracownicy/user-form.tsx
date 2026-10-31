@@ -12,6 +12,8 @@ export type UserDefaults = {
   login: string;
   role: "ADMIN" | "EMPLOYEE";
   canManageRealizations: boolean;
+  canUseEmbroidery: boolean;
+  canUseLaundry: boolean;
   active: boolean;
 };
 
@@ -20,6 +22,8 @@ export const emptyUser: UserDefaults = {
   login: "",
   role: "EMPLOYEE",
   canManageRealizations: false,
+  canUseEmbroidery: true,
+  canUseLaundry: true,
   active: true,
 };
 
@@ -52,6 +56,7 @@ export function UserForm({
   const { state, onSubmit, pending } = useFormSubmit(action);
   const [role, setRole] = useState(defaults.role);
   const [password, setPassword] = useState("");
+  const [embroidery, setEmbroidery] = useState(defaults.canUseEmbroidery);
 
   const isAdmin = role === "ADMIN";
 
@@ -146,12 +151,67 @@ export function UserForm({
           {isSelf ? <input type="hidden" name="role" value={role} /> : null}
         </FormField>
 
+        <div>
+          <p className="mb-1.5 text-sm font-medium">Dostęp do aplikacji</p>
+          <div className="overflow-hidden rounded-lg border border-line">
+            <table className="w-full text-sm">
+              <tbody className="divide-y divide-line">
+                {[
+                  {
+                    name: "canUseEmbroidery",
+                    label: "Baza haftów",
+                    hint: "Realizacje, nici i dziennik pracy.",
+                    checked: isAdmin || embroidery,
+                    onChange: setEmbroidery,
+                  },
+                  {
+                    name: "canUseLaundry",
+                    label: "Trasa pralni",
+                    hint: "Głosowe zapisywanie trasy, klienci i asortyment pralni.",
+                    defaultChecked: defaults.canUseLaundry,
+                  },
+                ].map((app) => (
+                  <tr key={app.name}>
+                    <td className="px-3 py-2.5">
+                      <label htmlFor={app.name} className="block">
+                        <span className="font-medium">{app.label}</span>
+                        <span className="block text-xs text-muted">{app.hint}</span>
+                      </label>
+                    </td>
+                    <td className="w-16 px-3 py-2.5 text-center">
+                      {isAdmin ? (
+                        <input type="checkbox" checked disabled readOnly className="size-4 accent-accent" />
+                      ) : (
+                        <input
+                          id={app.name}
+                          type="checkbox"
+                          name={app.name}
+                          {...("onChange" in app
+                            ? { checked: app.checked, onChange: (event) => app.onChange!(event.target.checked) }
+                            : { defaultChecked: app.defaultChecked })}
+                          className="size-4 accent-accent"
+                        />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="field-hint">
+            {isAdmin
+              ? "Administrator ma dostęp do obu aplikacji."
+              : "Osoba widzi na ekranie startowym tylko zaznaczone aplikacje."}
+          </p>
+          {state?.errors?.access ? <p className="field-error">{state.errors.access[0]}</p> : null}
+        </div>
+
         <label className="flex items-start gap-2 text-sm">
           <input
             type="checkbox"
             name="canManageRealizations"
             defaultChecked={defaults.canManageRealizations}
-            disabled={isAdmin}
+            disabled={isAdmin || !embroidery}
             className="mt-0.5 size-4 accent-accent"
           />
           <span>
@@ -159,7 +219,9 @@ export function UserForm({
             <span className="block text-xs text-muted">
               {isAdmin
                 ? "Administrator ma wszystkie uprawnienia."
-                : "Nie daje wglądu w ceny ani w konta innych osób."}
+                : !embroidery
+                  ? "Wymaga dostępu do bazy haftów."
+                  : "Nie daje wglądu w ceny ani w konta innych osób."}
             </span>
           </span>
         </label>

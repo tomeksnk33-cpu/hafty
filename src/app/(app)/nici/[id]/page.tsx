@@ -4,14 +4,14 @@ import { notFound } from "next/navigation";
 import { DeleteButton } from "@/components/delete-button";
 import { PageHeader } from "@/components/page-header";
 import { RealizationCard, realizationCardSelect } from "@/components/realization-card";
-import { requireUser } from "@/lib/auth";
+import { requireEmbroideryUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { plural } from "@/lib/format";
 
 import { deleteThread } from "../actions";
 
 export default async function ThreadPage(props: PageProps<"/nici/[id]">) {
-  const user = await requireUser();
+  const user = await requireEmbroideryUser();
   const { id } = await props.params;
 
   const thread = await prisma.thread.findUnique({ where: { id } });

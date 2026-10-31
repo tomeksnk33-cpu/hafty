@@ -2,13 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { Prisma } from "@/generated/prisma/client";
-import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { laundryUser } from "@/lib/pralnia/access";
 import { mailConfigured, sendMail } from "@/lib/pralnia/mail";
 import { renderRouteMail } from "@/lib/pralnia/summary";
-
-const unauthorized = () =>
-  NextResponse.json({ error: "Zaloguj się ponownie." }, { status: 401 });
 
 const routeSchema = z.object({
   id: z.string().trim().min(1).max(64),
@@ -29,8 +26,8 @@ const routeSchema = z.object({
 
 /** Ostatnie trasy wszystkich pracowników. */
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return unauthorized();
+  const { denied } = await laundryUser();
+  if (denied) return denied;
 
   const routes = await prisma.laundryRoute.findMany({
     orderBy: { finishedAt: "desc" },
@@ -63,8 +60,8 @@ export async function GET() {
  * duplikatu ani drugiego maila.
  */
 export async function POST(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) return unauthorized();
+  const { user, denied } = await laundryUser();
+  if (denied) return denied;
 
   let body: unknown = null;
   try {

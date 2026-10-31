@@ -4,7 +4,7 @@ import { EmptyState, PageHeader } from "@/components/page-header";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { plural } from "@/lib/format";
-import { roleLabel } from "@/lib/roles";
+import { appsLabel, roleLabel } from "@/lib/roles";
 
 export default async function EmployeesPage() {
   const admin = await requireAdmin();
@@ -17,6 +17,8 @@ export default async function EmployeesPage() {
       login: true,
       role: true,
       canManageRealizations: true,
+      canUseEmbroidery: true,
+      canUseLaundry: true,
       active: true,
       _count: { select: { workEntries: true } },
     },
@@ -54,7 +56,7 @@ export default async function EmployeesPage() {
                     ) : null}
                   </p>
                   <p className="truncate text-sm text-muted">
-                    {user.login} · {roleLabel(user)}
+                    {user.login} · {roleLabel(user)} · {appsLabel(user)}
                   </p>
                 </div>
 
