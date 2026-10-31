@@ -50,6 +50,8 @@ export default async function AppChooserPage() {
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-4 py-10">
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
+          {/* eslint-disable-next-line @next/next/no-img-element -- statyczny plik z public/, bez optymalizacji */}
+          <img src="/brand/logo.png" alt="GTM Bukowski" className="mb-6 h-12 w-auto max-w-full" />
           <h1 className="text-2xl font-semibold tracking-tight">Wybierz aplikację</h1>
           <p className="mt-1 text-sm text-muted">Zalogowano jako {user.name}.</p>
         </div>
