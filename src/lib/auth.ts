@@ -6,7 +6,6 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { Prisma } from "@/generated/prisma/client";
 import { Role } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { spendTimeLikeAVerification, verifyPassword } from "@/lib/passwords";
@@ -55,41 +54,49 @@ export function normalizeLogin(login: string) {
 }
 
 /**
- * Pierwsze logowanie po przejściu z jednego wspólnego hasła. Dopóki w bazie nie
- * ma żadnego konta, loginem `admin` (albo ADMIN_LOGIN) i dotychczasowym hasłem
- * z APP_PASSWORD_HASH zakłada się pierwsze konto administratora. Potem baza jest
- * jedynym źródłem prawdy, a ta zmienna przestaje być używana.
+ * Hasz z APP_PASSWORD_HASH. W panelu Vercel łatwo wkleić go razem z
+ * cudzysłowami albo z przedrostkiem `APP_PASSWORD_HASH=` (tak wypisuje go
+ * `npm run haslo`), więc te dodatki obcinamy.
  */
-async function bootstrapAdmin(login: string, password: string) {
-  const stored = process.env.APP_PASSWORD_HASH;
-  const bootstrapLogin = normalizeLogin(process.env.ADMIN_LOGIN ?? "admin");
+function recoveryHash() {
+  const raw = (process.env.APP_PASSWORD_HASH ?? "").trim().replace(/^APP_PASSWORD_HASH=/, "");
+  const stored = raw.replace(/^["']|["']$/g, "").trim();
 
-  if (!stored || login !== bootstrapLogin) return null;
-  if ((await prisma.user.count()) > 0) return null;
+  return stored.startsWith("scrypt:") ? stored : null;
+}
+
+/**
+ * Pierwsze logowanie i odzyskanie dostępu administratora. Loginem `admin`
+ * (albo ADMIN_LOGIN) i hasłem, z którego powstał APP_PASSWORD_HASH:
+ *
+ * - zakłada się konto administratora, jeśli takiego loginu nie ma,
+ * - albo istniejące konto o tym loginie dostaje to hasło, zostaje włączone
+ *   i ma rolę administratora (gdy ktoś zapomniał hasła).
+ *
+ * Działa tylko, dopóki zmienna jest ustawiona — po zalogowaniu należy ją
+ * usunąć z Vercel i zmienić hasło w „Moje konto".
+ */
+async function recoverAdmin(login: string, password: string) {
+  const stored = recoveryHash();
+  const adminLogin = normalizeLogin(process.env.ADMIN_LOGIN ?? "admin");
+
+  if (!stored || login !== adminLogin) return null;
   if (!verifyPassword(password, stored)) return null;
 
-  try {
-    const admin = await prisma.user.create({
-      data: {
-        login,
-        name: "Administrator",
-        passwordHash: stored,
-        role: Role.ADMIN,
-        canManageRealizations: true,
-      },
-      select: { id: true },
-    });
+  const admin = await prisma.user.upsert({
+    where: { login },
+    create: {
+      login,
+      name: "Administrator",
+      passwordHash: stored,
+      role: Role.ADMIN,
+      canManageRealizations: true,
+    },
+    update: { passwordHash: stored, role: Role.ADMIN, active: true },
+    select: { id: true },
+  });
 
-    return admin.id;
-  } catch (error) {
-    // Dwa równoległe pierwsze logowania — drugie trafia na unikalny login.
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      const existing = await prisma.user.findUnique({ where: { login }, select: { id: true } });
-      return existing?.id ?? null;
-    }
-
-    throw error;
-  }
+  return admin.id;
 }
 
 /** Zwraca id konta po poprawnym loginie i haśle albo `null`. Nie zdradza, co było złe. */
@@ -103,12 +110,12 @@ export async function authenticate(loginInput: string, password: string) {
 
   if (!user) {
     spendTimeLikeAVerification(password);
-    return bootstrapAdmin(login, password);
+    return recoverAdmin(login, password);
   }
 
-  const passwordMatches = verifyPassword(password, user.passwordHash);
+  if (verifyPassword(password, user.passwordHash) && user.active) return user.id;
 
-  return passwordMatches && user.active ? user.id : null;
+  return recoverAdmin(login, password);
 }
 
 export async function startSession(userId: string) {

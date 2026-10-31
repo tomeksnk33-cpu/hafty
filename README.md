@@ -120,14 +120,17 @@ npm run dev
 
 Aplikacja stoi na http://localhost:3000.
 
-### Pierwsze logowanie
+### Pierwsze logowanie i zapomniane hasło administratora
 
-Dopóki w bazie nie ma żadnego konta, zalogujesz się loginem `admin` (albo
-`ADMIN_LOGIN`) i hasłem, z którego powstał `APP_PASSWORD_HASH`. To zakłada
-pierwsze konto administratora — od tej chwili baza jest jedynym źródłem haseł,
-a zmienna przestaje być używana (można ją usunąć). Potem w zakładce
-**Pracownicy** zakładasz pozostałe konta, a w **Moje konto** (kliknij swoje imię
-w nagłówku) zmieniasz hasło.
+Loginem `admin` (albo `ADMIN_LOGIN`) i hasłem, z którego powstał
+`APP_PASSWORD_HASH`, można się zawsze zalogować, dopóki ta zmienna jest ustawiona:
+
+- jeśli konta `admin` nie ma, zostaje założone jako administrator,
+- jeśli jest (np. zapomniane hasło), dostaje to hasło, zostaje włączone i ma rolę administratora.
+
+Po zalogowaniu zmień hasło w **Moje konto** (kliknij swoje imię w nagłówku) i
+**usuń `APP_PASSWORD_HASH` z ustawień Vercel**, żeby nie zostawiać drugiego
+hasła do konta administratora. Pozostałe konta zakładasz w zakładce **Pracownicy**.
 
 ### Skrypty
 
