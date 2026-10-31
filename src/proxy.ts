@@ -27,10 +27,11 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Wszystko poza ekranem logowania, zasobami Next i plikami z public/.
+    // Wszystko poza ekranem logowania, zasobami Next i plikami z public/
+    // (logo w brand/ widać już na ekranie logowania).
     // Manifest i ikony trasy pralni przeglądarka pobiera bez ciasteczka, przy
     // dodawaniu aplikacji do ekranu głównego. Codzienny raport rejestratora
     // wywołuje Vercel Cron, też bez ciasteczka.
-    "/((?!login|_next/static|_next/image|uploads/|favicon.ico|pralnia/manifest\\.webmanifest|pralnia/icon|api/rejestrator/cron).*)",
+    "/((?!login|_next/static|_next/image|uploads/|brand/|favicon.ico|pralnia/manifest\\.webmanifest|pralnia/icon|api/rejestrator/cron).*)",
   ],
 };

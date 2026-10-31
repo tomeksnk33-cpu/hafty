@@ -9,8 +9,8 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Baza haftów",
-  description: "Archiwum realizacji haftu: klienci, nici, zdjęcia i pliki projektów.",
+  title: "GTM Bukowski",
+  description: "Baza haftów, trasa pralni i rejestrator czasu pracy GTM Bukowski.",
 };
 
 export default function RootLayout({

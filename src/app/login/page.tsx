@@ -17,9 +17,9 @@ export default async function LoginPage(props: PageProps<"/login">) {
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Baza haftów</h1>
-          <p className="mt-1 text-sm text-muted">Archiwum realizacji</p>
+        <div className="mb-8 flex justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element -- statyczny plik z public/, bez optymalizacji */}
+          <img src="/brand/logo.png" alt="GTM Bukowski" className="h-16 w-auto max-w-full" />
         </div>
 
         <div className="card p-6">
