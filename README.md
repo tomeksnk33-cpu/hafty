@@ -4,9 +4,10 @@ Archiwum wykonanych haftów: realizacje ze zdjęciami, klienci, katalog nici,
 wyszukiwarka, podsumowania i dziennik pracy pracowników. Dostęp mają tylko
 zalogowane osoby, każda na własnym koncie.
 
-W tej samej aplikacji działa też **Trasa pralni** (`/pralnia`). Po zalogowaniu
-pojawia się ekran wyboru: „Baza haftów” albo „Trasa pralni”. Obie części
-korzystają z jednej bazy PostgreSQL i tych samych kont pracowników.
+W tej samej aplikacji działają też **Trasa pralni** (`/pralnia`) i
+**Rejestrator czasu pracy** (`/rejestrator`). Po zalogowaniu pojawia się ekran
+wyboru z aplikacjami, do których konto ma dostęp. Wszystkie części korzystają
+z jednej bazy PostgreSQL i tych samych kont pracowników.
 
 ## Trasa pralni
 
@@ -29,6 +30,33 @@ Aplikacja w telefonie do zapisywania głosem, co zostało zrobione u klientów n
   telefonie otwórz `/pralnia` i wybierz w menu przeglądarki **Dodaj do ekranu głównego**.
 - Kod: interfejs w `public/pralnia/` (czysty JS), API w `src/app/api/pralnia/`,
   mail w `src/lib/pralnia/`.
+
+## Rejestrator czasu pracy
+
+Pod `/rejestrator`: rozpoznawanie twarzy kamerą (np. tablet przy drzwiach),
+wejścia, wyjścia i przerwy, lista obecności, prace z normami i zatwierdzaniem,
+raport dnia mailem (z CSV) i eksport CSV.
+
+- Dostęp: konto z zaznaczonym „Rejestrator czasu pracy”. Na tablet przy
+  drzwiach najlepiej założyć osobne konto z dostępem tylko do rejestratora.
+- Pracowników z wzorcami twarzy, prace i normy oraz ustawienia raportu
+  zmienia się w **trybie kierownika** (hasło kierownika ustawiane przy
+  pierwszej takiej czynności, ważne 5 minut od ostatniej czynności).
+  Zapomniane hasło kierownika: usuń wiersz `admin` z tabeli `RcpSetting`.
+- Dane są w tabelach `RcpPerson`, `RcpTask`, `RcpPunch`, `RcpWork`,
+  `RcpRecognition`, `RcpSetting` i `RcpVersion`. Urządzenia co 8 sekund
+  sprawdzają numery wersji i pobierają tylko to, co się zmieniło.
+- Raport wysyła o ustawionej godzinie pierwsze otwarte urządzenie, a jeśli
+  żadne nie jest otwarte — Vercel Cron (`vercel.json`, codziennie 15:00 UTC).
+  Raport nie wyjdzie dwa razy tego samego dnia. Używa tych samych zmiennych
+  `SMTP_*` co trasa pralni; opcjonalnie `SMTP_SECURITY` (`ssl`, `starttls`,
+  `brak`) i `CRON_SECRET`.
+- Kod: interfejs w `public/rejestrator/` (czysty JS, `core.js` wspólny z
+  serwerem), API w `src/app/api/rejestrator/`, logika w `src/lib/rejestrator/`.
+- Wzorce twarzy to dane biometryczne (RODO, art. 9): potrzebna dobrowolna zgoda
+  pracowników i możliwość innej metody rejestracji. Zapisywane są tylko wektory
+  cech twarzy, nie zdjęcia. Biblioteka: @vladmandic/face-api (MIT,
+  `public/rejestrator/LICENSE-face-api.txt`).
 
 Mail wymaga zmiennych środowiskowych (patrz `.env.example`):
 

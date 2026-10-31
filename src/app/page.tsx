@@ -24,20 +24,30 @@ const apps = [
     mark: "P",
     markClass: "bg-[#1f5fa8] text-white",
   },
+  {
+    href: "/rejestrator",
+    title: "Rejestrator czasu pracy",
+    description: "Wejścia i wyjścia z rozpoznawaniem twarzy, prace, normy i raport dnia.",
+    mark: "R",
+    markClass: "bg-[#15803d] text-white",
+  },
 ] as const;
 
 export default async function AppChooserPage() {
   const user = await requireUser();
 
-  const allowed = apps.filter((app) =>
-    app.href === "/pralnia" ? user.canUseLaundry : user.canUseEmbroidery,
-  );
+  const access: Record<(typeof apps)[number]["href"], boolean> = {
+    "/pulpit": user.canUseEmbroidery,
+    "/pralnia": user.canUseLaundry,
+    "/rejestrator": user.canUseTimeclock,
+  };
+  const allowed = apps.filter((app) => access[app.href]);
 
   // Z dostępem do jednej aplikacji nie ma czego wybierać — od razu do niej.
   if (allowed.length === 1) redirect(allowed[0].href);
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-4 py-10">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-4 py-10">
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Wybierz aplikację</h1>
@@ -57,7 +67,7 @@ export default async function AppChooserPage() {
         </p>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {allowed.map((app) => (
           // Zwykły <a>, nie <Link>: trasa pralni to osobna, statyczna strona.
           <a
@@ -80,7 +90,7 @@ export default async function AppChooserPage() {
       </div>
 
       <p className="mt-6 text-center text-sm text-muted">
-        Obie aplikacje korzystają z jednej bazy i tych samych kont.{" "}
+        Wszystkie aplikacje korzystają z jednej bazy i tych samych kont.{" "}
         <Link href="/konto" className="text-accent hover:underline">
           Moje konto
         </Link>

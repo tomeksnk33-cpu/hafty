@@ -27,6 +27,8 @@ export type SessionUser = {
   canUseEmbroidery: boolean;
   /** Dostęp do trasy pralni. */
   canUseLaundry: boolean;
+  /** Dostęp do rejestratora czasu pracy. */
+  canUseTimeclock: boolean;
   /** Dodawanie i edycja haftów, klientów i nici. */
   canManage: boolean;
   /** Ceny, wartości i podsumowania finansowe. */
@@ -41,6 +43,7 @@ function toSessionUser(user: {
   canManageRealizations: boolean;
   canUseEmbroidery: boolean;
   canUseLaundry: boolean;
+  canUseTimeclock: boolean;
 }): SessionUser {
   const isAdmin = user.role === Role.ADMIN;
   const canUseEmbroidery = isAdmin || user.canUseEmbroidery;
@@ -53,6 +56,7 @@ function toSessionUser(user: {
     isAdmin,
     canUseEmbroidery,
     canUseLaundry: isAdmin || user.canUseLaundry,
+    canUseTimeclock: isAdmin || user.canUseTimeclock,
     canManage: isAdmin || (canUseEmbroidery && user.canManageRealizations),
     canSeeMoney: isAdmin,
   };
@@ -166,6 +170,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
       canManageRealizations: true,
       canUseEmbroidery: true,
       canUseLaundry: true,
+      canUseTimeclock: true,
       active: true,
     },
   });

@@ -39,13 +39,21 @@ function readForm(formData: FormData) {
     canManageRealizations: formData.get("canManageRealizations") === "on",
     canUseEmbroidery: formData.get("canUseEmbroidery") === "on",
     canUseLaundry: formData.get("canUseLaundry") === "on",
+    canUseTimeclock: formData.get("canUseTimeclock") === "on",
     active: formData.get("active") === "on",
   };
 }
 
 /** Pracownik musi mieć dostęp przynajmniej do jednej aplikacji. Administrator ma zawsze do obu. */
-function accessProblem(data: { role: Role; canUseEmbroidery: boolean; canUseLaundry: boolean }): FormState | null {
-  if (data.role === Role.ADMIN || data.canUseEmbroidery || data.canUseLaundry) return null;
+function accessProblem(data: {
+  role: Role;
+  canUseEmbroidery: boolean;
+  canUseLaundry: boolean;
+  canUseTimeclock: boolean;
+}): FormState | null {
+  if (data.role === Role.ADMIN || data.canUseEmbroidery || data.canUseLaundry || data.canUseTimeclock) {
+    return null;
+  }
 
   const message = "Zaznacz przynajmniej jedną aplikację, z której ta osoba może korzystać.";
 

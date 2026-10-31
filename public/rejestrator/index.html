@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rejestrator czasu pracy</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --text:#1c1f24; --muted:#6b7280; --line:#e3e6ea;
+          --accent:#2563eb; --ok:#15803d; --warn:#b45309; --err:#b91c1c;
+          --att-in:#16a34a; --att-in-bg:#dcfce7; --att-break:#ea580c; --att-break-bg:#ffedd5; --att-out:#dc2626; --att-out-bg:#fee2e2; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111418; --card:#1a1e24; --text:#e8eaed; --muted:#9aa3ad; --line:#2c323a;
+            --accent:#60a5fa; --ok:#4ade80; --warn:#fbbf24; --err:#f87171;
+            --att-in:#22c55e; --att-in-bg:#14532d; --att-break:#fb923c; --att-break-bg:#7c2d12; --att-out:#f87171; --att-out-bg:#7f1d1d; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:16px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; }
+  h1 { font-size:20px; margin:0; }
+  nav button { margin-left:4px; }
+  .layout { max-width:1320px; margin:0 auto; padding:0 16px 32px; display:grid; grid-template-columns: 260px minmax(0,1fr); gap:16px; align-items:start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  main { min-width:0; }
+  #attendance { position:sticky; top:16px; }
+  #attendance h3 { margin:0 0 4px; }
+  .att-counts { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 12px; font-size:13px; }
+  .att-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+  .att-list li { padding:8px 10px; border-radius:8px; border-left:5px solid; display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+  .att-list .name { font-weight:600; overflow-wrap:anywhere; }
+  .att-list .since { font-size:12px; white-space:nowrap; opacity:.85; }
+  .att-list li.att-in    { background:var(--att-in-bg);    border-color:var(--att-in); }
+  .att-list li.att-break { background:var(--att-break-bg); border-color:var(--att-break); }
+  .att-list li.att-out   { background:var(--att-out-bg);   border-color:var(--att-out); }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:-1px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  .grid { display:grid; grid-template-columns: minmax(0,3fr) minmax(0,2fr); gap:16px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .video-wrap { position:relative; width:100%; aspect-ratio:4/3; background:#000; border-radius:10px; overflow:hidden; }
+  video, canvas.overlay { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
+  button { font:inherit; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--text); cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.active { border-color:var(--accent); color:var(--accent); font-weight:600; }
+  button:disabled { opacity:.5; cursor:default; }
+  input[type=text], input[type=date] { font:inherit; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); }
+  .who { font-size:28px; font-weight:700; margin:8px 0 4px; min-height:36px; }
+  .muted { color:var(--muted); font-size:14px; }
+  .status { font-size:14px; margin-top:8px; min-height:20px; }
+  .brk { color:var(--accent); }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .err { color:var(--err); }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; }
+  #summary td:not(:first-child) { white-space:nowrap; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:99px; font-size:12px; border:1px solid currentColor; }
+  .table-scroll { overflow-x:auto; }
+  .hidden { display:none; }
+  .big { font-size:18px; padding:12px 18px; width:100%; margin-top:8px; }
+  .grid.wide { grid-template-columns: minmax(0,1fr); }
+  .grid.wide > .cam-card { display:none; }
+  .att-list li.clickable { cursor:pointer; }
+  .att-list li.clickable:hover { filter:brightness(0.97); outline:2px solid var(--accent); }
+  .att-list .norm { display:block; font-weight:400; font-size:12px; margin-top:2px; }
+  input[type=number], select { font:inherit; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); }
+  input[type=number] { width:110px; }
+  dialog { border:1px solid var(--line); border-radius:12px; background:var(--card); color:var(--text); padding:20px; width:min(560px, calc(100vw - 32px)); }
+  dialog::backdrop { background:rgba(0,0,0,.45); }
+  .verdict { padding:10px 12px; border-radius:8px; margin-top:12px; font-weight:600; }
+  .verdict.ok { background:var(--att-in-bg); } .verdict.warn { background:var(--att-break-bg); } .verdict.err { background:var(--att-out-bg); }
+  .x-btn { padding:2px 8px; }
+  .admin-bar { display:flex; align-items:center; gap:8px; font-size:14px; }
+  .admin-on { color:var(--ok); font-weight:600; }
+  .locked-note { padding:24px 8px; text-align:center; }
+  .pending { color:var(--warn); }
+  .banner { max-width:1320px; margin:0 auto 12px; padding:10px 16px; border-radius:8px; background:var(--att-out-bg); color:var(--text); font-size:14px; }
+  .sync { font-size:12px; color:var(--muted); }
+  textarea { font:inherit; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); width:100%; }
+  input[type=time] { font:inherit; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); }
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="/" title="Wybór aplikacji" style="color:inherit;text-decoration:none">‹ Rejestrator czasu pracy</a></h1>
+  <div class="admin-bar" id="adminBar"></div>
+  <nav>
+    <button data-tab="clock" class="active">Rejestracja</button>
+    <button data-tab="people">Pracownicy</button>
+    <button data-tab="tasks">Prace</button>
+    <button data-tab="report">Raport</button>
+  </nav>
+</header>
+<div class="banner hidden" id="banner"></div>
+<div class="layout">
+<aside class="card" id="attendance">
+  <h3>Lista obecności</h3>
+  <div class="att-counts" id="attCounts"></div>
+  <ul class="att-list" id="attList"></ul>
+  <div class="sync" id="syncInfo" style="margin-top:12px"></div>
+</aside>
+<main>
+  <div class="card" id="loading"><span id="loadingText">Ładowanie…</span></div>
+
+  <div class="grid" id="mainGrid">
+    <div class="card cam-card">
+      <div class="video-wrap">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="overlay" class="overlay"></canvas>
+      </div>
+      <div class="status muted" id="camStatus">Kamera nieaktywna</div>
+    </div>
+
+    <div>
+      <!-- Rejestracja wejść / wyjść -->
+      <section class="card" id="tab-clock">
+        <div class="muted">Rozpoznana osoba</div>
+        <div class="who" id="who">—</div>
+        <div class="muted" id="whoState">&nbsp;</div>
+        <div id="punchBtns"><button class="primary big" disabled>Zarejestruj</button></div>
+        <label class="row muted"><input type="checkbox" id="autoPunch"> Automatycznie rejestruj po rozpoznaniu</label>
+        <div class="status" id="punchStatus"></div>
+      </section>
+
+      <!-- Pracownicy -->
+      <section class="card hidden" id="tab-people">
+        <h3 style="margin-top:0">Dodaj pracownika</h3>
+        <div class="row">
+          <input type="text" id="newName" placeholder="Imię i nazwisko" style="flex:1; min-width:0">
+        </div>
+        <div class="row">
+          <button id="captureBtn">Zrób zdjęcie twarzy</button>
+          <span class="muted" id="sampleCount">0 / 5 zdjęć</span>
+        </div>
+        <div class="row">
+          <button class="primary" id="saveBtn" disabled>Zapisz pracownika</button>
+          <button id="resetSamples">Wyczyść zdjęcia</button>
+        </div>
+        <div class="muted">Zrób 3–5 zdjęć, lekko zmieniając ustawienie głowy. Wystarczy jedna osoba w kadrze.</div>
+        <div class="status" id="peopleStatus"></div>
+        <h3>Zarejestrowani</h3>
+        <div id="peopleList" class="muted">Brak pracowników.</div>
+      </section>
+
+      <!-- Prace i normy -->
+      <section class="card hidden" id="tab-tasks">
+        <h3 style="margin-top:0">Prace i normy dzienne</h3>
+        <div class="muted">Norma to ilość, którą pracownik powinien wykonać w ciągu dnia pracy. Wykonanie co najmniej 110% normy pozwala wyjść wcześniej i zalicza 7 godzin pracy.</div>
+        <div class="row">
+          <input type="text" id="taskName" placeholder="Nazwa pracy, np. Pakowanie paczek" style="flex:1; min-width:180px">
+          <input type="text" id="taskUnit" placeholder="Jednostka" value="szt." style="width:100px">
+          <input type="number" id="taskNorm" placeholder="Norma / dzień" min="0" step="any">
+          <button class="primary" id="addTaskBtn">Dodaj pracę</button>
+        </div>
+        <div class="status" id="taskStatus"></div>
+        <div class="table-scroll"><table id="taskTable"></table></div>
+        <div class="muted" style="margin-top:8px">Zmiana normy dotyczy nowych wpisów. Wpisy już zapisane liczą się według normy z chwili wpisania.</div>
+      </section>
+
+      <!-- Raport -->
+      <section class="card hidden" id="tab-report">
+        <h3 style="margin-top:0">Podsumowanie dnia</h3>
+        <div class="row"><input type="date" id="reportDate"><button id="reportCsvBtn">Pobierz raport CSV</button></div>
+        <div class="table-scroll"><table id="summary"></table></div>
+        <h3>Raport mailem</h3>
+        <div class="muted" id="mailInfo">Sprawdzanie ustawień poczty…</div>
+        <div class="row"><button id="sendReportBtn" disabled>Wyślij raport z wybranego dnia</button></div>
+        <div class="status" id="mailStatus"></div>
+        <details id="mailSettings" style="margin-top:8px">
+          <summary>Ustawienia raportu (kierownik)</summary>
+          <div class="row"><textarea id="mailTo" rows="2" placeholder="Adresy odbiorców, oddzielone przecinkami"></textarea></div>
+          <div class="row">
+            <label class="muted">Godzina wysyłki <input type="time" id="mailTime"></label>
+            <label class="muted"><input type="checkbox" id="mailEnabled"> Wysyłaj codziennie</label>
+            <button class="primary" id="saveMailBtn">Zapisz</button>
+          </div>
+          <div class="status" id="mailSetStatus"></div>
+        </details>
+      </section>
+    </div>
+  </div>
+
+  <section class="card" id="logCard">
+    <div class="row" style="justify-content:space-between">
+      <h3 style="margin:0">Dziennik wejść, wyjść i przerw <span class="muted" style="font-weight:400">(ostatnie 7 dni)</span></h3>
+      <div class="row" style="margin:0">
+        <button id="exportCsv" title="Cały miesiąc wybrany w zakładce Raport">Eksportuj CSV (miesiąc)</button>
+        <button id="clearLog">Wyczyść dziennik</button>
+      </div>
+    </div>
+    <div class="table-scroll"><table id="log"></table></div>
+  </section>
+
+  <section class="card" id="recCard">
+    <div class="row" style="justify-content:space-between">
+      <h3 style="margin:0">Historia rozpoznań twarzy</h3>
+      <div class="row" style="margin:0">
+        <button id="exportRecCsv" title="Cały miesiąc wybrany w zakładce Raport">Eksportuj CSV (miesiąc)</button>
+        <button id="clearRec">Wyczyść historię</button>
+      </div>
+    </div>
+    <div class="muted">Każde rozpoznanie osoby z datą i godziną (ta sama osoba zapisywana najwyżej raz na minutę).</div>
+    <div class="table-scroll"><table id="recLog"></table></div>
+  </section>
+</main>
+</div>
+
+<dialog id="workDlg">
+  <h3 style="margin:0 0 4px" id="workTitle">Wykonana praca</h3>
+  <div class="muted" id="workSub"></div>
+  <div id="workForm">
+    <div class="row">
+      <select id="workTask" style="flex:1; min-width:180px"></select>
+      <input type="text" inputmode="decimal" id="workQty" placeholder="Ilość" style="width:110px">
+      <span class="muted" id="workUnit"></span>
+      <button class="primary" id="addWorkBtn">Dodaj</button>
+    </div>
+  </div>
+  <div class="status" id="workStatus"></div>
+  <div class="table-scroll"><table id="workTable"></table></div>
+  <div id="workVerdict"></div>
+  <div class="row" style="justify-content:flex-end; margin-top:16px"><button id="closeWorkBtn">Zamknij</button></div>
+</dialog>
+
+<dialog id="passDlg" style="width:min(400px, calc(100vw - 32px))">
+  <form method="dialog" id="passForm">
+    <h3 style="margin:0 0 4px" id="passTitle">Hasło kierownika</h3>
+    <div class="muted" id="passText"></div>
+    <div class="row"><input type="password" id="passInput" placeholder="Hasło" autocomplete="current-password" style="flex:1"></div>
+    <div class="row" id="pass2Row"><input type="password" id="passInput2" placeholder="Powtórz hasło" autocomplete="new-password" style="flex:1"></div>
+    <div class="status err" id="passErr"></div>
+    <div class="row" style="justify-content:flex-end">
+      <button type="button" id="passCancel">Anuluj</button>
+      <button type="submit" class="primary" id="passOk">OK</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/rejestrator/face-api.js"></script>
+<script type="module" src="/rejestrator/app.js"></script>
+</body>
+</html>

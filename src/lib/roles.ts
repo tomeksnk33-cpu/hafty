@@ -11,12 +11,18 @@ export function appsLabel(user: {
   role: "ADMIN" | "EMPLOYEE";
   canUseEmbroidery: boolean;
   canUseLaundry: boolean;
+  canUseTimeclock: boolean;
 }) {
-  if (user.role === "ADMIN" || (user.canUseEmbroidery && user.canUseLaundry)) {
-    return "hafty i pralnia";
-  }
-  if (user.canUseEmbroidery) return "tylko hafty";
-  if (user.canUseLaundry) return "tylko pralnia";
+  if (user.role === "ADMIN") return "wszystkie aplikacje";
 
-  return "bez dostępu";
+  const apps = [
+    user.canUseEmbroidery && "hafty",
+    user.canUseLaundry && "pralnia",
+    user.canUseTimeclock && "rejestrator",
+  ].filter(Boolean);
+
+  if (apps.length === 3) return "wszystkie aplikacje";
+  if (apps.length === 0) return "bez dostępu";
+
+  return apps.join(", ");
 }

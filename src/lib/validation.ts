@@ -130,6 +130,7 @@ export const userCreateSchema = z.object({
   canManageRealizations: z.boolean(),
   canUseEmbroidery: z.boolean(),
   canUseLaundry: z.boolean(),
+  canUseTimeclock: z.boolean(),
 });
 
 export const userUpdateSchema = z.object({
@@ -141,6 +142,7 @@ export const userUpdateSchema = z.object({
   canManageRealizations: z.boolean(),
   canUseEmbroidery: z.boolean(),
   canUseLaundry: z.boolean(),
+  canUseTimeclock: z.boolean(),
   active: z.boolean(),
 });
 

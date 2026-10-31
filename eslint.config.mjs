@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Trasa pralni: przeniesiona bez zmian stylu statyczna aplikacja w czystym JS.
     "public/pralnia/**",
+    "public/rejestrator/**",
   ]),
 ]);
 
