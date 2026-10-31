@@ -4,6 +4,7 @@ import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { laundryUser } from "@/lib/pralnia/access";
+import { describeDevice } from "@/lib/pralnia/device";
 import { mailConfigured, sendMail } from "@/lib/pralnia/mail";
 import { renderRouteMail } from "@/lib/pralnia/summary";
 
@@ -12,6 +13,14 @@ const routeSchema = z.object({
   /** Ponowna wysyłka maila dla już zapisanej trasy. */
   resend: z.boolean().optional(),
   date: z.iso.datetime().optional(),
+  /** Podpowiedzi o modelu telefonu z navigator.userAgentData (Chrome na Androidzie). */
+  device: z
+    .object({
+      model: z.string().max(100).optional(),
+      platform: z.string().max(100).optional(),
+      platformVersion: z.string().max(100).optional(),
+    })
+    .optional(),
   route: z
     .array(
       z.object({
@@ -71,7 +80,7 @@ export async function POST(request: Request) {
   const parsed = routeSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Nieprawidłowe dane trasy." }, { status: 400 });
 
-  const { id, resend, date, route: lines } = parsed.data;
+  const { id, resend, date, device, route: lines } = parsed.data;
 
   let saved = await prisma.laundryRoute.findUnique({
     where: { id },
@@ -87,6 +96,7 @@ export async function POST(request: Request) {
           id,
           userId: user.id,
           workerName: user.name,
+          device: describeDevice(request.headers.get("user-agent"), device),
           finishedAt: date ? new Date(date) : new Date(),
           entries: {
             create: lines.map((line, position) => ({
@@ -117,7 +127,7 @@ export async function POST(request: Request) {
       mailError = "Serwer nie ma skonfigurowanej poczty (SMTP).";
     } else {
       try {
-        await sendMail(renderRouteMail({ workerName: saved.workerName, finishedAt: saved.finishedAt, lines: saved.entries }));
+        await sendMail(renderRouteMail({ workerName: saved.workerName, device: saved.device, finishedAt: saved.finishedAt, lines: saved.entries }));
         mailedAt = new Date();
         await prisma.laundryRoute.update({ where: { id }, data: { mailedAt } });
       } catch (error) {

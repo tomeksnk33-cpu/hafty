@@ -224,6 +224,8 @@ model LaundryRoute {
   /// NULL, gdyby konto kiedyś zniknęło — imię zostaje w `workerName`.
   userId     String?
   workerName String
+  /// Opis urządzenia, z którego wysłano trasę (np. „Samsung SM-S918B, Android 14 · Chrome”).
+  device     String?
   finishedAt DateTime
   mailedAt   DateTime?
   createdAt  DateTime  @default(now())
