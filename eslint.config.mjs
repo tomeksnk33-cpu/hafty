@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Trasa pralni: przeniesiona bez zmian stylu statyczna aplikacja w czystym JS.
+    "public/pralnia/**",
   ]),
 ]);
 

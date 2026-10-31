@@ -31,7 +31,8 @@ model User {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
-  workEntries WorkEntry[]
+  workEntries   WorkEntry[]
+  laundryRoutes LaundryRoute[]
 }
 
 /// Wpis w dzienniku pracy: kto, którego dnia, przy której realizacji i ile sztuk.
@@ -185,4 +186,59 @@ model RealizationThread {
 
   @@id([realizationId, threadId])
   @@index([threadId])
+}
+
+// ---------------------------------------------------------------------------
+// Trasa pralni (aplikacja głosowa pod /pralnia). Osobne tabele od haftów:
+// klienci i asortyment pralni mają „inne nazwy" do rozpoznawania mowy.
+// ---------------------------------------------------------------------------
+
+enum LaundryCatalogKind {
+  CLIENT
+  ITEM
+}
+
+/// Klient albo pozycja asortymentu pralni — wspólna lista dla wszystkich pracowników.
+model LaundryCatalogEntry {
+  id        String             @id @default(cuid())
+  kind      LaundryCatalogKind
+  name      String
+  /// Inne nazwy i formy odmiany, po których rozpoznajemy wypowiedź.
+  aliases   String[]           @default([])
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([kind, name])
+}
+
+/// Zakończona trasa. `id` nadaje telefon, dzięki czemu ponowna wysyłka po
+/// utracie zasięgu nie tworzy duplikatu.
+model LaundryRoute {
+  id         String    @id
+  /// NULL, gdyby konto kiedyś zniknęło — imię zostaje w `workerName`.
+  userId     String?
+  workerName String
+  finishedAt DateTime
+  mailedAt   DateTime?
+  createdAt  DateTime  @default(now())
+
+  user    User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  entries LaundryRouteEntry[]
+
+  @@index([finishedAt])
+}
+
+/// Jeden wpis trasy. Nazwy zapisujemy tekstem z chwili trasy, żeby zmiana
+/// albo usunięcie klienta w katalogu nie zmieniała historii.
+model LaundryRouteEntry {
+  id         String @id @default(cuid())
+  routeId    String
+  position   Int
+  clientName String
+  itemName   String
+  quantity   Int
+
+  route LaundryRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@index([routeId, position])
 }

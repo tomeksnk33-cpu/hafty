@@ -7,7 +7,7 @@ import { logOut } from "../login/actions";
 
 function navigationFor(user: SessionUser): NavItem[] {
   const items: NavItem[] = [
-    { href: "/", label: "Pulpit" },
+    { href: "/pulpit", label: "Pulpit" },
     { href: "/realizacje", label: "Realizacje" },
     { href: "/dziennik", label: "Dziennik" },
   ];
@@ -37,9 +37,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <>
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3">
-          <Link href="/" className="text-lg font-semibold tracking-tight">
-            Baza haftów
-          </Link>
+          <div className="flex items-baseline gap-3">
+            <Link href="/pulpit" className="text-lg font-semibold tracking-tight">
+              Baza haftów
+            </Link>
+            <Link href="/" title="Wybór aplikacji" className="text-sm text-muted hover:text-ink">
+              Zmień aplikację
+            </Link>
+          </div>
 
           <div className="order-3 w-full sm:order-none sm:w-auto">
             <NavLinks items={navigationFor(user)} />

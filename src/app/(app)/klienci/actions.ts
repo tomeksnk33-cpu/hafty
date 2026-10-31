@@ -32,7 +32,7 @@ export async function createClient(
   const client = await prisma.client.create({ data: parsed.data });
 
   revalidatePath("/klienci");
-  revalidatePath("/");
+  revalidatePath("/pulpit");
 
   redirect(`/klienci/${client.id}`);
 }
@@ -70,7 +70,7 @@ export async function deleteClient(id: string) {
 
   revalidatePath("/klienci");
   revalidatePath("/realizacje");
-  revalidatePath("/");
+  revalidatePath("/pulpit");
 
   redirect("/klienci");
 }

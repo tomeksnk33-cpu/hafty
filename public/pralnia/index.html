@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f5fa8">
+<link rel="manifest" href="/pralnia/manifest.webmanifest">
+<link rel="icon" href="/pralnia/icon.svg">
+<link rel="apple-touch-icon" href="/pralnia/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Trasa pralni</title>
+<style>
+:root{
+  --bg:#f4f6f9; --card:#fff; --ink:#1b2430; --muted:#5d6b7c; --line:#dde3ea;
+  --accent:#1f5fa8; --accent-ink:#fff; --ok:#1e8a4c; --bad:#c0392b; --warn:#b7791f;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11161d; --card:#1a212b; --ink:#e7edf4; --muted:#9aa8b8; --line:#2b3542;
+    --accent:#4d8fdb; --accent-ink:#0b1320; --ok:#3fbf75; --bad:#ef6b5b; --warn:#e0a84a;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--accent);color:var(--accent-ink);padding:12px 16px}
+header h1{margin:0;font-size:18px}
+header a{color:inherit;text-decoration:none}
+.banner a{color:inherit;font-weight:600}
+.banner{border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#fff4e0;color:#6b4300;border:1px solid #f0c987}
+.banner.err{background:#fde8e6;color:#7a1d12;border-color:#f2b3ab}
+nav{display:flex;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:48px;z-index:4}
+nav button{flex:1;border:0;background:none;color:var(--muted);padding:12px 4px;font:inherit;font-size:14px;border-bottom:3px solid transparent}
+nav button.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+main{max-width:720px;margin:0 auto;padding:16px}
+section{display:none} section.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+.big{display:block;width:100%;padding:18px;font-size:20px;font-weight:600;border:0;border-radius:14px;background:var(--accent);color:var(--accent-ink)}
+.big.stop{background:var(--bad);color:#fff}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:9px 12px;font:inherit;font-size:14px}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.del{color:var(--bad)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 10px;width:100%}
+label{font-size:13px;color:var(--muted);display:block;margin:8px 0 4px}
+.state{font-size:15px;color:var(--muted);margin:10px 0 4px;text-align:center}
+.state b{color:var(--ink)}
+.current{font-size:22px;font-weight:700;text-align:center;min-height:30px}
+.heard{text-align:center;color:var(--muted);font-style:italic;min-height:22px}
+.log{max-height:240px;overflow:auto;font-size:14px;border-top:1px solid var(--line);margin-top:10px;padding-top:8px}
+.log div{padding:3px 0;border-bottom:1px dashed var(--line)}
+.ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+table{width:100%;border-collapse:collapse;font-size:15px}
+td,th{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:13px}
+td.n{text-align:right;width:70px}
+.list li{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+.list{list-style:none;margin:0;padding:0}
+.small{font-size:13px;color:var(--muted)}
+.pulse{animation:p 1.2s infinite}
+@keyframes p{50%{opacity:.55}}
+h2{font-size:17px;margin:0 0 8px}
+</style>
+</head>
+<body>
+<header class="row" style="justify-content:space-between"><h1><a href="/" title="Wybór aplikacji">‹ Trasa pralni</a></h1><span id="who" style="font-size:13px;opacity:.9"></span></header>
+<nav>
+  <button data-tab="trasa" class="on">Trasa</button>
+  <button data-tab="klienci">Klienci</button>
+  <button data-tab="asort">Asortyment</button>
+  <button data-tab="ust">Ustawienia</button>
+</nav>
+<main>
+
+<!-- TRASA -->
+<section id="trasa" class="on">
+  <div id="banner"></div>
+  <div class="card">
+    <button id="mic" class="big">🎤 Rozpocznij trasę</button>
+    <div class="state" id="state">Naciśnij przycisk i podaj nazwę klienta.</div>
+    <div class="current" id="current"></div>
+    <div class="heard" id="heard"></div>
+    <div class="row" style="margin-top:10px">
+      <input id="typed" placeholder="Albo wpisz to, co byś powiedział…" style="flex:1">
+      <button class="btn" id="typedGo">Wyślij</button>
+    </div>
+    <p class="small" style="margin:8px 0 0">Komendy: <b>„następny klient”</b>, <b>„cofnij”</b>, <b>„koniec trasy”</b>. Przykład: „prześcieradła 20”, „ręczniki 15, poszewki 30”.</p>
+    <div class="log" id="log"></div>
+  </div>
+  <div class="card">
+    <h2>Bieżąca trasa</h2>
+    <div id="summary" class="small">Brak wpisów.</div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn pri" id="sendNow">Koniec trasy – wyślij mail</button>
+      <button class="btn" id="copySum">Kopiuj podsumowanie</button>
+      <button class="btn del" id="clearRoute">Wyczyść trasę</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h2>Ostatnie trasy (wszyscy pracownicy)</h2><button class="btn" id="histRefresh">Odśwież</button></div>
+    <ul class="list" id="history"></ul>
+  </div>
+</section>
+
+<!-- KLIENCI -->
+<section id="klienci">
+  <div class="card">
+    <h2>Dodaj klienta</h2>
+    <label>Nazwa</label><input id="cName" placeholder="np. Hotel Pod Lipami">
+    <label>Inne nazwy, po przecinku (jak pracownik może go nazywać)</label><input id="cAlias" placeholder="np. pod lipami, lipy">
+    <div class="row" style="margin-top:10px"><button class="btn pri" id="cAdd">Dodaj</button></div>
+  </div>
+  <p class="small" id="cSync"></p>
+  <div class="card"><h2>Klienci (<span id="cCount">0</span>)</h2><ul class="list" id="cList"></ul></div>
+</section>
+
+<!-- ASORTYMENT -->
+<section id="asort">
+  <div class="card">
+    <h2>Dodaj asortyment</h2>
+    <label>Nazwa</label><input id="aName" placeholder="np. Prześcieradło">
+    <label>Inne formy / nazwy, po przecinku</label><input id="aAlias" placeholder="np. prześcieradła, prześcieradeł">
+    <div class="row" style="margin-top:10px"><button class="btn pri" id="aAdd">Dodaj</button></div>
+  </div>
+  <div class="card"><h2>Asortyment (<span id="aCount">0</span>)</h2><ul class="list" id="aList"></ul></div>
+</section>
+
+<!-- USTAWIENIA -->
+<section id="ust">
+  <div class="card">
+    <h2>Ten telefon</h2>
+    <p style="margin:0">Zalogowano jako <b id="sWorker">…</b>. To imię pojawi się w mailu z trasą.</p>
+    <p class="small">Konto i hasło są te same co w bazie haftów. Imię zmienia administrator w zakładce <b>Pracownicy</b>.
+      Podsumowanie trasy wysyła się automatycznie na adres ustawiony na serwerze.</p>
+    <div class="row" style="margin-top:10px"><a class="btn" href="/">Wybór aplikacji</a><a class="btn" href="/konto">Moje konto</a></div>
+  </div>
+  <div class="card">
+    <h2>Głos</h2>
+    <label><input type="checkbox" id="sRepeat" style="width:auto"> Powtarzaj na głos zapisany asortyment i ilość</label>
+  </div>
+</section>
+</main>
+<script src="/pralnia/app.js"></script>
+</body>
+</html>

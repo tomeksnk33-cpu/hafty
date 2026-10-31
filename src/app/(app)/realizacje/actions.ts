@@ -126,7 +126,7 @@ async function existingClientId(id: string | null) {
 }
 
 function revalidateEverywhere(id?: string) {
-  revalidatePath("/");
+  revalidatePath("/pulpit");
   revalidatePath("/realizacje");
   revalidatePath("/klienci");
   revalidatePath("/nici");

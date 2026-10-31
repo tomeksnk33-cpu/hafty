@@ -58,7 +58,7 @@ function fieldError(field: string, message: string): FormState {
 }
 
 function revalidateEntries() {
-  revalidatePath("/");
+  revalidatePath("/pulpit");
   revalidatePath("/dziennik");
   revalidatePath("/rozliczenia");
 }

@@ -11,7 +11,7 @@ import { formatMoney, plural, todayInputValue } from "@/lib/format";
 // siebie, bo czytają `searchParams` albo `params`.
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage(props: PageProps<"/">) {
+export default async function DashboardPage(props: PageProps<"/pulpit">) {
   const user = await requireUser();
   const { brak } = await props.searchParams;
 

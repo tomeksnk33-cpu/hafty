@@ -46,7 +46,7 @@ export async function createThread(
   }
 
   revalidatePath("/nici");
-  revalidatePath("/");
+  revalidatePath("/pulpit");
 
   redirect("/nici");
 }
