@@ -128,6 +128,8 @@ export const userCreateSchema = z.object({
   password: newPasswordField,
   role: roleField,
   canManageRealizations: z.boolean(),
+  canUseEmbroidery: z.boolean(),
+  canUseLaundry: z.boolean(),
 });
 
 export const userUpdateSchema = z.object({
@@ -137,6 +139,8 @@ export const userUpdateSchema = z.object({
   password: z.string().max(MAX_PASSWORD, `Hasło może mieć najwyżej ${MAX_PASSWORD} znaków`),
   role: roleField,
   canManageRealizations: z.boolean(),
+  canUseEmbroidery: z.boolean(),
+  canUseLaundry: z.boolean(),
   active: z.boolean(),
 });
 

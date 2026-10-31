@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import { PageHeader } from "@/components/page-header";
-import { requireUser } from "@/lib/auth";
+import { requireEmbroideryUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate, todayInputValue } from "@/lib/format";
 import { canChangeEntryOn, oldestEditableDate, safeReturnPath } from "@/lib/work-entries";
@@ -11,7 +11,7 @@ import { loadRealizationOptions } from "../../realization-options";
 import { WorkEntryForm } from "../../work-entry-form";
 
 export default async function EditWorkEntryPage(props: PageProps<"/dziennik/[id]/edytuj">) {
-  const user = await requireUser();
+  const user = await requireEmbroideryUser();
   const { id } = await props.params;
   const { wroc } = await props.searchParams;
 

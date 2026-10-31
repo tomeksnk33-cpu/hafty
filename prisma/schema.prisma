@@ -26,6 +26,10 @@ model User {
   role                  Role     @default(EMPLOYEE)
   /// Pozwala dodawać i edytować hafty, klientów i nici bez uprawnień administratora.
   canManageRealizations Boolean  @default(false)
+  /// Dostęp do bazy haftów (realizacje, nici, dziennik). Administrator ma zawsze.
+  canUseEmbroidery      Boolean  @default(true)
+  /// Dostęp do trasy pralni (/pralnia). Administrator ma zawsze.
+  canUseLaundry         Boolean  @default(true)
   /// Konta się nie usuwa, tylko wyłącza — wpisy w dzienniku muszą zostać.
   active                Boolean  @default(true)
   createdAt             DateTime @default(now())

@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { PageHeader, Stat } from "@/components/page-header";
 import { RealizationCard, realizationCardSelect } from "@/components/realization-card";
-import { requireUser } from "@/lib/auth";
+import { requireEmbroideryUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatMoney, plural, todayInputValue } from "@/lib/format";
 
@@ -12,7 +12,7 @@ import { formatMoney, plural, todayInputValue } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage(props: PageProps<"/pulpit">) {
-  const user = await requireUser();
+  const user = await requireEmbroideryUser();
   const { brak } = await props.searchParams;
 
   const today = new Date(`${todayInputValue()}T00:00:00.000Z`);

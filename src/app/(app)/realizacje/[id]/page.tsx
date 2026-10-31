@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { DeleteButton } from "@/components/delete-button";
 import { PageHeader } from "@/components/page-header";
 import { RealizationGallery } from "@/components/realization-gallery";
-import { requireUser } from "@/lib/auth";
+import { requireEmbroideryUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate, formatFileSize, formatMoney } from "@/lib/format";
 
@@ -20,7 +20,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 export default async function RealizationPage(props: PageProps<"/realizacje/[id]">) {
-  const user = await requireUser();
+  const user = await requireEmbroideryUser();
   const { id } = await props.params;
 
   const realization = await prisma.realization.findUnique({

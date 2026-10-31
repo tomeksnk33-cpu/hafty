@@ -5,3 +5,18 @@ export function roleLabel(user: { role: "ADMIN" | "EMPLOYEE"; canManageRealizati
 
   return "Pracownik";
 }
+
+/** Z których aplikacji osoba może korzystać — do listy pracowników. */
+export function appsLabel(user: {
+  role: "ADMIN" | "EMPLOYEE";
+  canUseEmbroidery: boolean;
+  canUseLaundry: boolean;
+}) {
+  if (user.role === "ADMIN" || (user.canUseEmbroidery && user.canUseLaundry)) {
+    return "hafty i pralnia";
+  }
+  if (user.canUseEmbroidery) return "tylko hafty";
+  if (user.canUseLaundry) return "tylko pralnia";
+
+  return "bez dostępu";
+}

@@ -6,6 +6,9 @@ import { requireUser, type SessionUser } from "@/lib/auth";
 import { logOut } from "../login/actions";
 
 function navigationFor(user: SessionUser): NavItem[] {
+  // Osoba bez dostępu do haftów trafia tu tylko na „Moje konto".
+  if (!user.canUseEmbroidery) return [];
+
   const items: NavItem[] = [
     { href: "/pulpit", label: "Pulpit" },
     { href: "/realizacje", label: "Realizacje" },
@@ -38,8 +41,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3">
           <div className="flex items-baseline gap-3">
-            <Link href="/pulpit" className="text-lg font-semibold tracking-tight">
-              Baza haftów
+            <Link
+              href={user.canUseEmbroidery ? "/pulpit" : "/"}
+              className="text-lg font-semibold tracking-tight"
+            >
+              {user.canUseEmbroidery ? "Baza haftów" : "Moje konto"}
             </Link>
             <Link href="/" title="Wybór aplikacji" className="text-sm text-muted hover:text-ink">
               Zmień aplikację

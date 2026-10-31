@@ -37,8 +37,19 @@ function readForm(formData: FormData) {
     password: fieldValue(formData, "password"),
     role: fieldValue(formData, "role"),
     canManageRealizations: formData.get("canManageRealizations") === "on",
+    canUseEmbroidery: formData.get("canUseEmbroidery") === "on",
+    canUseLaundry: formData.get("canUseLaundry") === "on",
     active: formData.get("active") === "on",
   };
+}
+
+/** Pracownik musi mieć dostęp przynajmniej do jednej aplikacji. Administrator ma zawsze do obu. */
+function accessProblem(data: { role: Role; canUseEmbroidery: boolean; canUseLaundry: boolean }): FormState | null {
+  if (data.role === Role.ADMIN || data.canUseEmbroidery || data.canUseLaundry) return null;
+
+  const message = "Zaznacz przynajmniej jedną aplikację, z której ta osoba może korzystać.";
+
+  return { message, errors: { access: [message] } };
 }
 
 export async function createUser(_state: FormState, formData: FormData): Promise<FormState> {
@@ -51,6 +62,9 @@ export async function createUser(_state: FormState, formData: FormData): Promise
   }
 
   const { password, ...data } = parsed.data;
+
+  const noAccess = accessProblem(data);
+  if (noAccess) return noAccess;
 
   try {
     await prisma.user.create({ data: { ...data, passwordHash: hashPassword(password) } });
@@ -79,6 +93,9 @@ export async function updateUser(
   }
 
   const { password, ...data } = parsed.data;
+
+  const noAccess = accessProblem(data);
+  if (noAccess) return noAccess;
 
   const target = await prisma.user.findUnique({ where: { id }, select: { id: true } });
 

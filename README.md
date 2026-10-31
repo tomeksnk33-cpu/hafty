@@ -80,6 +80,12 @@ Mail wymaga zmiennych środowiskowych (patrz `.env.example`):
 | Dodawanie i edycja haftów, klientów, nici | | ✓ | ✓ |
 | Rozliczenia, konta pracowników | | | ✓ |
 
+Przy każdym koncie administrator zaznacza też **dostęp do aplikacji**: Baza
+haftów, Trasa pralni albo obie. Osoba bez dostępu do haftów (np. kierowca
+pralni) po zalogowaniu trafia od razu do trasy pralni i nie wejdzie na żadną
+stronę haftów; osoba bez dostępu do pralni nie dostanie danych pralni.
+Administrator ma zawsze dostęp do obu.
+
 Uprawnienia sprawdza serwer w każdej stronie, akcji i endpoincie — ukrycie
 przycisku w menu to tylko wygoda, nie zabezpieczenie. Osoba z uprawnieniem do
 haftów nie widzi pola ceny, a jej edycja haftu **nie nadpisuje** ceny ustawionej

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { requireUser, type SessionUser } from "@/lib/auth";
+import { requireEmbroideryUser, type SessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { todayInputValue } from "@/lib/format";
 import { fieldValue, toFormState, workEntrySchema, type FormState } from "@/lib/validation";
@@ -67,7 +67,7 @@ export async function createWorkEntry(
   _state: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const user = await requireUser();
+  const user = await requireEmbroideryUser();
 
   const parsed = readForm(formData);
 
@@ -131,7 +131,7 @@ export async function updateWorkEntry(
   _state: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const user = await requireUser();
+  const user = await requireEmbroideryUser();
 
   const existing = await prisma.workEntry.findUnique({
     where: { id },
@@ -183,7 +183,7 @@ export async function updateWorkEntry(
 }
 
 export async function deleteWorkEntry(id: string, returnTo: string) {
-  const user = await requireUser();
+  const user = await requireEmbroideryUser();
 
   const existing = await prisma.workEntry.findUnique({
     where: { id },

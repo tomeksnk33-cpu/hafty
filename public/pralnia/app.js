@@ -16,6 +16,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 
 // ---------- server ----------
 let loggedOut = false; // session expired or account disabled: the route waits on the phone until the worker logs in again
+let noAccess = false;  // logged in, but the account has no access to the laundry app
 async function api(path, opts = {}) {
   const r = await fetch("/api/pralnia/" + path, {
     ...opts,
@@ -29,6 +30,7 @@ async function api(path, opts = {}) {
   const authFailed = r.status === 401 || (r.redirected && new URL(r.url).pathname === "/login");
   if (authFailed !== loggedOut) { loggedOut = authFailed; renderBanner(); }
   if (authFailed) { const err = new Error("Zaloguj się ponownie."); err.status = 401; throw err; }
+  if (r.status === 403 && !noAccess) { noAccess = true; renderBanner(); }
   if (!r.ok) { const err = new Error(data.error || "Błąd serwera " + r.status); err.status = r.status; err.data = data; throw err; }
   return data;
 }
@@ -248,6 +250,10 @@ function renderSummary() {
 }
 function renderBanner() {
   const b = $("#banner");
+  if (noAccess) {
+    b.innerHTML = `<div class="banner err">Twoje konto nie ma dostępu do trasy pralni. Poproś administratora o uprawnienie albo <a href="/">wróć do wyboru aplikacji</a>.</div>`;
+    return;
+  }
   if (loggedOut) {
     const waiting = local.pending.length ? " Niewysłane trasy czekają w telefonie i wyślą się po zalogowaniu." : "";
     b.innerHTML = `<div class="banner err">Sesja wygasła. <a href="/login?powrot=/pralnia">Zaloguj się ponownie</a>.${waiting}</div>`;

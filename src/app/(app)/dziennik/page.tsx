@@ -1,7 +1,7 @@
 import { MonthNav } from "@/components/month-nav";
 import { EmptyState, PageHeader, Stat } from "@/components/page-header";
 import { WorkDayList } from "@/components/work-day-list";
-import { requireUser } from "@/lib/auth";
+import { requireEmbroideryUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { plural, todayInputValue } from "@/lib/format";
 import { EDIT_WINDOW_DAYS, groupByDay, oldestEditableDate, parseMonth } from "@/lib/work-entries";
@@ -11,7 +11,7 @@ import { loadRealizationOptions } from "./realization-options";
 import { WorkEntryForm } from "./work-entry-form";
 
 export default async function WorkLogPage(props: PageProps<"/dziennik">) {
-  const user = await requireUser();
+  const user = await requireEmbroideryUser();
   const { miesiac } = await props.searchParams;
 
   const range = parseMonth(miesiac);
