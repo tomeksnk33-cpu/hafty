@@ -12,6 +12,7 @@ export function appsLabel(user: {
   canUseEmbroidery: boolean;
   canUseLaundry: boolean;
   canUseTimeclock: boolean;
+  canUseAttendance: boolean;
 }) {
   if (user.role === "ADMIN") return "wszystkie aplikacje";
 
@@ -19,9 +20,10 @@ export function appsLabel(user: {
     user.canUseEmbroidery && "hafty",
     user.canUseLaundry && "pralnia",
     user.canUseTimeclock && "rejestrator",
+    user.canUseAttendance && "obecność",
   ].filter(Boolean);
 
-  if (apps.length === 3) return "wszystkie aplikacje";
+  if (apps.length === 4) return "wszystkie aplikacje";
   if (apps.length === 0) return "bez dostępu";
 
   return apps.join(", ");

@@ -15,6 +15,7 @@ export type UserDefaults = {
   canUseEmbroidery: boolean;
   canUseLaundry: boolean;
   canUseTimeclock: boolean;
+  canUseAttendance: boolean;
   active: boolean;
 };
 
@@ -26,6 +27,7 @@ export const emptyUser: UserDefaults = {
   canUseEmbroidery: true,
   canUseLaundry: true,
   canUseTimeclock: true,
+  canUseAttendance: false,
   active: true,
 };
 
@@ -178,6 +180,12 @@ export function UserForm({
                     hint: "Wejścia i wyjścia z rozpoznawaniem twarzy, prace i normy. Np. tablet przy drzwiach.",
                     defaultChecked: defaults.canUseTimeclock,
                   },
+                  {
+                    name: "canUseAttendance",
+                    label: "Lista Obecności Brzozów",
+                    hint: "Głosowe rozpoczynanie i kończenie pracy. Np. telefon lub tablet w zakładzie.",
+                    defaultChecked: defaults.canUseAttendance,
+                  },
                 ].map((app) => (
                   <tr key={app.name}>
                     <td className="px-3 py-2.5">
@@ -208,7 +216,7 @@ export function UserForm({
           </div>
           <p className="field-hint">
             {isAdmin
-              ? "Administrator ma dostęp do obu aplikacji."
+              ? "Administrator ma dostęp do wszystkich aplikacji."
               : "Osoba widzi na ekranie startowym tylko zaznaczone aplikacje."}
           </p>
           {state?.errors?.access ? <p className="field-error">{state.errors.access[0]}</p> : null}

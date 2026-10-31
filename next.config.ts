@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
     return [
       { source: "/pralnia", destination: "/pralnia/index.html" },
       { source: "/rejestrator", destination: "/rejestrator/index.html" },
+      { source: "/obecnosc", destination: "/obecnosc/index.html" },
     ];
   },
   // Modele rozpoznawania twarzy (~7 MB) zmieniają się tylko z nową wersją aplikacji.

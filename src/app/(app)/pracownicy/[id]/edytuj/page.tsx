@@ -22,6 +22,7 @@ export default async function EditEmployeePage(props: PageProps<"/pracownicy/[id
       canUseEmbroidery: true,
       canUseLaundry: true,
       canUseTimeclock: true,
+      canUseAttendance: true,
       active: true,
     },
   });
@@ -41,6 +42,7 @@ export default async function EditEmployeePage(props: PageProps<"/pracownicy/[id
           canUseEmbroidery: user.canUseEmbroidery,
           canUseLaundry: user.canUseLaundry,
           canUseTimeclock: user.canUseTimeclock,
+          canUseAttendance: user.canUseAttendance,
           active: user.active,
         }}
         mode="edit"

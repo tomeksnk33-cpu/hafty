@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#b45309">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23b45309'/%3E%3Ctext x='32' y='44' font-size='34' font-family='sans-serif' font-weight='700' fill='white' text-anchor='middle'%3EO%3C/text%3E%3C/svg%3E">
+<title>Lista Obecności Brzozów</title>
+<style>
+:root{
+  --bg:#f6f4f1; --card:#fff; --ink:#1f1b16; --muted:#6b6258; --line:#e4ded6;
+  --accent:#b45309; --accent-ink:#fff; --ok:#1e8a4c; --bad:#c0392b; --warn:#b7791f; --soft:#fdf3e7;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15120f; --card:#1f1a15; --ink:#efe8df; --muted:#a89c8e; --line:#352d25;
+    --accent:#f59e0b; --accent-ink:#1a1206; --ok:#3fbf75; --bad:#ef6b5b; --warn:#e0a84a; --soft:#2a2118;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--accent);color:var(--accent-ink);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+header h1{margin:0;font-size:18px}
+header a{color:inherit;text-decoration:none}
+nav{display:flex;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:48px;z-index:4}
+nav button{flex:1;border:0;background:none;color:var(--muted);padding:12px 4px;font:inherit;font-size:14px;border-bottom:3px solid transparent}
+nav button.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+nav.hidden{display:none}
+main{max-width:860px;margin:0 auto;padding:16px}
+section{display:none} section.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+.banner{border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#fff4e0;color:#6b4300;border:1px solid #f0c987}
+.banner.err{background:#fde8e6;color:#7a1d12;border-color:#f2b3ab}
+.banner a{color:inherit;font-weight:600}
+.big{display:block;width:100%;padding:18px;font-size:20px;font-weight:600;border:0;border-radius:14px;background:var(--accent);color:var(--accent-ink)}
+.big.stop{background:var(--bad);color:#fff}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:8px 12px;font:inherit;font-size:14px;cursor:pointer}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.del{color:var(--bad)}
+.btn:disabled{opacity:.5}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+input[type=text]{width:100%}
+label{font-size:13px;color:var(--muted);display:block;margin:8px 0 4px}
+.hint{text-align:center;color:var(--muted);margin:12px 0 4px}
+.hint b{color:var(--ink)}
+.heard{text-align:center;color:var(--muted);font-style:italic;min-height:22px}
+.result{text-align:center;border-radius:14px;padding:18px 12px;margin-top:12px;min-height:96px;display:flex;flex-direction:column;justify-content:center}
+.result .who{font-size:26px;font-weight:700}
+.result .what{font-size:18px;margin-top:4px}
+.result.ok{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ink)}
+.result.ok .what{color:var(--ok)}
+.result.bad{background:color-mix(in srgb,var(--bad) 12%,transparent)}
+.result.bad .what{color:var(--bad)}
+.result.wait{background:var(--soft)}
+.log{max-height:220px;overflow:auto;font-size:14px}
+.log div{padding:4px 0;border-bottom:1px dashed var(--line)}
+.ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+.small{font-size:13px;color:var(--muted)}
+.pulse{animation:p 1.2s infinite}
+@keyframes p{50%{opacity:.6}}
+h2{font-size:17px;margin:0 0 10px}
+table{width:100%;border-collapse:collapse;font-size:15px}
+td,th{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{color:var(--muted);font-weight:600;font-size:13px}
+td.n,th.n{text-align:right;white-space:nowrap}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:14px}
+/* kalendarz */
+.calhead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.calhead h2{margin:0;text-transform:capitalize}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal .dow{font-size:12px;color:var(--muted);text-align:center;padding:2px 0}
+.day{min-height:74px;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:5px 6px;text-align:left;font:inherit;color:inherit;cursor:pointer;display:flex;flex-direction:column;gap:2px;min-width:0}
+.day.out{visibility:hidden}
+.day.today{border-color:var(--accent)}
+.day.sel{outline:2px solid var(--accent);outline-offset:-1px}
+.day .d{font-size:13px;color:var(--muted)}
+.day .h{font-size:16px;font-weight:700}
+.day .p{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.day.has{background:var(--soft)}
+.day .w{font-size:11px;color:var(--warn)}
+@media (max-width:520px){.day{min-height:58px;padding:4px}.day .h{font-size:13px}.day .p{display:none}}
+.scroll{overflow-x:auto}
+@media (max-width:520px){#dayBody td,#dayBody th{padding:6px 3px;font-size:14px}#dayBody td .btn{padding:6px 8px;font-size:13px;margin:2px 0}#dayBody td.n:last-child{white-space:normal;width:1%}#dayBody td.n:last-child .btn{display:block}.lbl{display:none}}
+.tag{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:0 4px;margin-left:4px}
+</style>
+</head>
+<body>
+<header><h1><a href="/" title="Wybór aplikacji">‹ Lista Obecności Brzozów</a></h1><span id="who" style="font-size:13px;opacity:.9"></span></header>
+<nav id="nav" class="hidden">
+  <button data-tab="obecnosc" class="on">Obecność</button>
+  <button data-tab="grafik">Grafik</button>
+  <button data-tab="osoby">Pracownicy</button>
+</nav>
+<main>
+<div id="banner"></div>
+
+<section id="obecnosc" class="on">
+  <div class="card">
+    <button id="mic" class="big">🎤 Włącz nasłuch</button>
+    <p class="hint">Powiedz: <b>„Nazywam się Jan Kowalski, rozpoczynam pracę”</b><br>albo <b>„Nazywam się Jan Kowalski, kończę pracę”</b></p>
+    <div class="heard" id="heard"></div>
+    <div class="result wait" id="result"><div class="what small">Czekam na pracownika…</div></div>
+    <div class="row" style="margin-top:12px">
+      <input type="text" id="typed" placeholder="…albo wpisz to samo zdanie" style="flex:1;min-width:200px">
+      <button class="btn" id="typedGo">Wyślij</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Teraz w pracy</h2>
+    <div class="chips" id="present"><span class="small">Nikt nie rozpoczął jeszcze pracy.</span></div>
+  </div>
+  <div class="card">
+    <h2>Ostatnie zgłoszenia na tym urządzeniu</h2>
+    <div class="log" id="log"></div>
+  </div>
+</section>
+
+<section id="grafik">
+  <div class="card">
+    <div class="calhead">
+      <button class="btn" id="prev" aria-label="Poprzedni miesiąc">‹</button>
+      <h2 id="month"></h2>
+      <button class="btn" id="next" aria-label="Następny miesiąc">›</button>
+      <select id="personFilter" aria-label="Pracownik"></select>
+    </div>
+    <div class="cal" id="cal"></div>
+    <p class="small" id="calNote" style="margin:10px 0 0"></p>
+  </div>
+  <div class="card" id="dayCard">
+    <h2 id="dayTitle">Wybierz dzień w kalendarzu</h2>
+    <div id="dayBody"></div>
+  </div>
+  <div class="card">
+    <h2>Podsumowanie miesiąca</h2>
+    <div id="monthSum"></div>
+  </div>
+</section>
+
+<section id="osoby">
+  <div class="card">
+    <h2>Dodaj pracownika</h2>
+    <label for="pName">Imię i nazwisko</label>
+    <input type="text" id="pName" placeholder="np. Jan Kowalski">
+    <label for="pAlias">Inne formy, które może usłyszeć telefon (po przecinku, opcjonalnie)</label>
+    <input type="text" id="pAlias" placeholder="np. Janek Kowalski">
+    <div class="row" style="margin-top:10px"><button class="btn pri" id="pAdd">Dodaj</button></div>
+  </div>
+  <div class="card">
+    <h2>Lista pracowników (<span id="pCount">0</span>)</h2>
+    <ul class="list" id="pList"></ul>
+  </div>
+</section>
+</main>
+<script src="/obecnosc/app.js"></script>
+</body>
+</html>
