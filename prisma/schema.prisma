@@ -30,6 +30,8 @@ model User {
   canUseEmbroidery      Boolean  @default(true)
   /// Dostęp do trasy pralni (/pralnia). Administrator ma zawsze.
   canUseLaundry         Boolean  @default(true)
+  /// Dostęp do rejestratora czasu pracy (/rejestrator). Administrator ma zawsze.
+  canUseTimeclock       Boolean  @default(true)
   /// Konta się nie usuwa, tylko wyłącza — wpisy w dzienniku muszą zostać.
   active                Boolean  @default(true)
   createdAt             DateTime @default(now())
@@ -245,4 +247,90 @@ model LaundryRouteEntry {
   route LaundryRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
 
   @@index([routeId, position])
+}
+
+// ---------------------------------------------------------------------------
+// Rejestrator czasu pracy (/rejestrator): rozpoznawanie twarzy na tablecie,
+// wejścia, wyjścia i przerwy, prace z normami, raport dnia mailem.
+// Ludzie rejestratora to osobna lista od kont logowania — tablet przy drzwiach
+// działa na jednym koncie, a pracownicy rozpoznawani są po twarzy.
+// Znaczniki czasu `ts` i dzień `day` (YYYY-MM-DD, czas warszawski) są
+// zapisywane osobno, bo urządzenia pobierają dane dniami.
+// ---------------------------------------------------------------------------
+
+/// Pracownik rejestratora z wektorami cech twarzy (nie zdjęciami).
+model RcpPerson {
+  id          String   @id
+  name        String
+  /// Lista wektorów po 128 liczb z face-api.
+  descriptors Json
+  createdAt   DateTime @default(now())
+}
+
+/// Rodzaj pracy z normą dzienną.
+model RcpTask {
+  id   String @id
+  name String
+  unit String
+  norm Float
+}
+
+/// Wejście, wyjście, początek albo koniec przerwy.
+model RcpPunch {
+  id       String   @id
+  /// Bez klucza obcego: wpisy zostają po usunięciu pracownika.
+  personId String
+  name     String
+  /// in | out | break_start | break_end
+  type     String
+  ts       DateTime
+  day      String
+
+  @@index([day])
+  @@index([personId, ts])
+}
+
+/// Wykonana praca zgłoszona przez pracownika, zatwierdzana przez kierownika.
+model RcpWork {
+  id         String    @id
+  personId   String
+  name       String
+  taskId     String
+  taskName   String
+  unit       String
+  norm       Float
+  qty        Float
+  ts         DateTime
+  day        String
+  approved   Boolean   @default(false)
+  approvedAt DateTime?
+
+  @@index([day])
+}
+
+/// Historia rozpoznań twarzy (najwyżej raz na minutę na osobę).
+model RcpRecognition {
+  id         String   @id
+  personId   String
+  name       String
+  similarity Float?
+  ts         DateTime
+  day        String
+
+  @@index([day])
+}
+
+/// Drobne wartości rejestratora: ustawienia raportu, hasło kierownika,
+/// znacznik wysłanego raportu i licznik błędnych haseł.
+model RcpSetting {
+  key       String    @id
+  value     String
+  expiresAt DateTime?
+}
+
+/// Numery wersji, po których urządzenia co kilka sekund poznają, że coś się
+/// zmieniło: `people`, `tasks`, `settings`, `last` oraz `day:YYYY-MM-DD`.
+model RcpVersion {
+  key   String @id
+  value Int    @default(0)
 }

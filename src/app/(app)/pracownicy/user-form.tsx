@@ -14,6 +14,7 @@ export type UserDefaults = {
   canManageRealizations: boolean;
   canUseEmbroidery: boolean;
   canUseLaundry: boolean;
+  canUseTimeclock: boolean;
   active: boolean;
 };
 
@@ -24,6 +25,7 @@ export const emptyUser: UserDefaults = {
   canManageRealizations: false,
   canUseEmbroidery: true,
   canUseLaundry: true,
+  canUseTimeclock: true,
   active: true,
 };
 
@@ -169,6 +171,12 @@ export function UserForm({
                     label: "Trasa pralni",
                     hint: "Głosowe zapisywanie trasy, klienci i asortyment pralni.",
                     defaultChecked: defaults.canUseLaundry,
+                  },
+                  {
+                    name: "canUseTimeclock",
+                    label: "Rejestrator czasu pracy",
+                    hint: "Wejścia i wyjścia z rozpoznawaniem twarzy, prace i normy. Np. tablet przy drzwiach.",
+                    defaultChecked: defaults.canUseTimeclock,
                   },
                 ].map((app) => (
                   <tr key={app.name}>
