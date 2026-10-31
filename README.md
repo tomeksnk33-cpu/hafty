@@ -4,6 +4,43 @@ Archiwum wykonanych haftów: realizacje ze zdjęciami, klienci, katalog nici,
 wyszukiwarka, podsumowania i dziennik pracy pracowników. Dostęp mają tylko
 zalogowane osoby, każda na własnym koncie.
 
+W tej samej aplikacji działa też **Trasa pralni** (`/pralnia`). Po zalogowaniu
+pojawia się ekran wyboru: „Baza haftów” albo „Trasa pralni”. Obie części
+korzystają z jednej bazy PostgreSQL i tych samych kont pracowników.
+
+## Trasa pralni
+
+Aplikacja w telefonie do zapisywania głosem, co zostało zrobione u klientów na trasie.
+
+1. Pracownik mówi nazwę klienta. Aplikacja odpowiada „OK” albo „Brak klienta”.
+2. Mówi asortyment i ilość, np. „prześcieradła 20, ręczniki 15”. Aplikacja powtarza, co zapisała.
+3. „Następny klient” przechodzi do kolejnego klienta, „cofnij” usuwa ostatni wpis.
+4. „Koniec trasy” wysyła mail z podsumowaniem (każdy klient osobno i suma całej trasy).
+
+- Klienci i asortyment pralni (z „innymi nazwami” do rozpoznawania mowy) oraz
+  zakończone trasy są w bazie, w tabelach `LaundryCatalogEntry`, `LaundryRoute`
+  i `LaundryRouteEntry`. To osobna lista od klientów haftów. Zmieniać ją może
+  każdy zalogowany pracownik.
+- Pracownik loguje się swoim kontem; jego imię z konta trafia do maila. Nie ma już PIN-u.
+- Bieżąca trasa jest zapisywana w telefonie, więc brak zasięgu (albo wygaśnięcie
+  sesji) nic nie psuje: niewysłana trasa czeka i wysyła się sama, gdy wróci
+  internet albo po ponownym zalogowaniu.
+- Rozpoznawanie mowy działa w Chrome na Androidzie i w Safari na iPhonie. Na
+  telefonie otwórz `/pralnia` i wybierz w menu przeglądarki **Dodaj do ekranu głównego**.
+- Kod: interfejs w `public/pralnia/` (czysty JS), API w `src/app/api/pralnia/`,
+  mail w `src/lib/pralnia/`.
+
+Mail wymaga zmiennych środowiskowych (patrz `.env.example`):
+
+| Zmienna | Co wpisać |
+|---|---|
+| `MAIL_TO` | `tomasz@gtm-bukowski.pl` (kilka adresów po przecinku) |
+| `SMTP_HOST` | serwer poczty wychodzącej, np. z panelu hostingu domeny |
+| `SMTP_PORT` | zwykle `465` |
+| `SMTP_USER` | login skrzynki, z której idą maile, np. `trasy@gtm-bukowski.pl` |
+| `SMTP_PASS` | hasło tej skrzynki |
+| `MAIL_FROM` | opcjonalnie nadawca, domyślnie `SMTP_USER` |
+
 ## Co jest w środku
 
 - **Realizacje** — nazwa, data wykonania, klient, typ produktu, wymiary,
@@ -124,6 +161,8 @@ prosto z telefonu i nie zapychać darmowego limitu magazynu.
    - `SESSION_SECRET` — **inny niż lokalny**,
    - `APP_PASSWORD_HASH` — z `npm run haslo`,
    - `SHADOW_DATABASE_URL` **pomiń** — jest potrzebny tylko lokalnie.
+   - `MAIL_TO`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` — dla maili
+     z trasy pralni (zob. wyżej).
 5. Storage → Blob → utwórz store i połącz z projektem. Vercel sam ustawi
    `BLOB_READ_WRITE_TOKEN`.
 6. Deploy. Komenda builda sama zastosuje migracje na bazie Neona.

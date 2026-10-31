@@ -28,6 +28,8 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     // Wszystko poza ekranem logowania, zasobami Next i plikami z public/.
-    "/((?!login|_next/static|_next/image|uploads/|favicon.ico).*)",
+    // Manifest i ikony trasy pralni przeglądarka pobiera bez ciasteczka, przy
+    // dodawaniu aplikacji do ekranu głównego.
+    "/((?!login|_next/static|_next/image|uploads/|favicon.ico|pralnia/manifest\\.webmanifest|pralnia/icon).*)",
   ],
 };

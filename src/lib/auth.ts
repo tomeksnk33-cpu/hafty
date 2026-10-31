@@ -173,7 +173,7 @@ export async function requireUser() {
 export async function requireManager() {
   const user = await requireUser();
 
-  if (!user.canManage) redirect("/?brak=uprawnien");
+  if (!user.canManage) redirect("/pulpit?brak=uprawnien");
 
   return user;
 }
@@ -181,7 +181,7 @@ export async function requireManager() {
 export async function requireAdmin() {
   const user = await requireUser();
 
-  if (!user.isAdmin) redirect("/?brak=uprawnien");
+  if (!user.isAdmin) redirect("/pulpit?brak=uprawnien");
 
   return user;
 }
