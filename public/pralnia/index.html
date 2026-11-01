@@ -59,6 +59,23 @@ td.n{text-align:right;width:70px}
 .pulse{animation:p 1.2s infinite}
 @keyframes p{50%{opacity:.55}}
 h2{font-size:17px;margin:0 0 8px}
+select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;max-width:100%}
+.calhead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.calhead h2{margin:0;text-transform:capitalize}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal .dow{font-size:12px;color:var(--muted);text-align:center;padding:2px 0}
+.day{min-height:78px;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:5px 6px;text-align:left;font:inherit;color:inherit;cursor:pointer;display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden}
+.day.out{visibility:hidden}
+.day.today{border-color:var(--accent)}
+.day.sel{outline:2px solid var(--accent);outline-offset:-1px}
+.day.has{background:color-mix(in srgb,var(--accent) 9%,var(--card))}
+.day .d{font-size:13px;color:var(--muted)}
+.day .it{font-size:12px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.day .more{font-size:11px;color:var(--muted)}
+.day .dot{display:none}
+@media (max-width:560px){.day{min-height:52px;padding:4px}.day .it,.day .more{display:none}.day .dot{display:block;font-size:12px;font-weight:700;color:var(--accent)}}
+main:has(#grafik.on){max-width:1040px}
+.scroll{overflow-x:auto}
 </style>
 </head>
 <body>
@@ -67,6 +84,7 @@ h2{font-size:17px;margin:0 0 8px}
   <button data-tab="trasa" class="on">Trasa</button>
   <button data-tab="klienci">Klienci</button>
   <button data-tab="asort">Asortyment</button>
+  <button data-tab="grafik" id="navGrafik" style="display:none">Grafik</button>
   <button data-tab="ust">Ustawienia</button>
 </nav>
 <main>
@@ -83,7 +101,7 @@ h2{font-size:17px;margin:0 0 8px}
       <input id="typed" placeholder="Albo wpisz to, co byś powiedział…" style="flex:1">
       <button class="btn" id="typedGo">Wyślij</button>
     </div>
-    <p class="small" style="margin:8px 0 0">Komendy: <b>„następny klient”</b>, <b>„cofnij”</b>, <b>„koniec trasy”</b>. Przykład: „prześcieradła 20”, „ręczniki 15, poszewki 30”.</p>
+    <p class="small" style="margin:8px 0 0">Komendy: <b>„następny klient”</b>, <b>„cofnij”</b>, <b>„koniec trasy”</b>. Przykład: „prześcieradła 20”, „ręczniki 15, poszewki 30”, „pościel 12,5 kilo”.</p>
     <div class="log" id="log"></div>
   </div>
   <div class="card">
@@ -119,9 +137,40 @@ h2{font-size:17px;margin:0 0 8px}
     <h2>Dodaj asortyment</h2>
     <label>Nazwa</label><input id="aName" placeholder="np. Prześcieradło">
     <label>Inne formy / nazwy, po przecinku</label><input id="aAlias" placeholder="np. prześcieradła, prześcieradeł">
+    <label for="aUnit">Liczone w</label>
+    <select id="aUnit" style="font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 10px">
+      <option value="szt">sztukach</option><option value="kg">kilogramach</option>
+    </select>
     <div class="row" style="margin-top:10px"><button class="btn pri" id="aAdd">Dodaj</button></div>
   </div>
   <div class="card"><h2>Asortyment (<span id="aCount">0</span>)</h2><ul class="list" id="aList"></ul></div>
+</section>
+
+<!-- GRAFIK (administrator) -->
+<section id="grafik">
+  <div class="card">
+    <div class="calhead">
+      <button class="btn" id="gPrev" aria-label="Poprzedni miesiąc">‹</button>
+      <h2 id="gMonth"></h2>
+      <button class="btn" id="gNext" aria-label="Następny miesiąc">›</button>
+    </div>
+    <label for="gClient" style="margin-top:0">Klient</label>
+    <select id="gClient"></select>
+    <div class="cal" id="gCal" style="margin-top:12px"></div>
+    <p class="small" id="gNote" style="margin:10px 0 0">Dzień trasy to dzień jej zakończenia.</p>
+  </div>
+  <div class="card">
+    <h2 id="gDayTitle">Wybierz dzień w kalendarzu</h2>
+    <div id="gDay"></div>
+  </div>
+  <div class="card">
+    <h2 id="gClientSumTitle">Podsumowanie klienta w miesiącu</h2>
+    <div id="gClientSum" class="scroll"></div>
+  </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h2>Wszyscy klienci – podsumowanie miesiąca</h2><button class="btn" id="gCsv">Pobierz CSV</button></div>
+    <div id="gAll" class="scroll"></div>
+  </div>
 </section>
 
 <!-- USTAWIENIA -->

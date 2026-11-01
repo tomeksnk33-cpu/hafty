@@ -38,7 +38,7 @@ async function loadCatalog() {
   try {
     const d = await api("katalog");
     local.catalog = { clients: d.clients, items: d.items };
-    if (d.user) local.worker = d.user.name;
+    if (d.user) { local.worker = d.user.name; local.isAdmin = !!d.user.isAdmin; showAdmin(); }
     save(); ui();
     $("#cSync").textContent = "Baza wspólna dla wszystkich pracowników. Zsynchronizowano " + new Date().toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }) + ".";
     return true;
@@ -107,7 +107,14 @@ function wordsToDigits(t) {
 }
 // "przescieradla 20 reczniki 15" / "20 przescieradel i 15 recznikow" -> [{item,qty}], plus unknown pieces
 function parseItems(text) {
-  const t = wordsToDigits(norm(text)).replace(/\b(i|oraz|sztuk|sztuki|sztuka|szt|razy|po)\b/g, " ").replace(/(\d)\s+(?=\d)/g, "$1 , ");
+  // "12,5" / "12.5" -> "12 przecinek 5", żeby przecinek przetrwał norm()
+  const marked = String(text).replace(/(\d)\s*[,.]\s*(\d)/g, "$1 przecinek $2");
+  const t = wordsToDigits(norm(marked))
+    .replace(/\b(\d+) przecinek (\d+)\b/g, "$1.$2")
+    .replace(/\b(\d+(?:\.\d+)?) i pol\b/g, (m, a) => String(+a + 0.5))
+    .replace(/\bpoltora\b/g, "1.5").replace(/\bpol\b/g, "0.5")
+    .replace(/\b(i|oraz|sztuk|sztuki|sztuka|szt|razy|po|kilogramow|kilogramy|kilogram|kilogramach|kilo|kg|kile)\b/g, " ")
+    .replace(/(\d)\s+(?=\d)/g, "$1 , ");
   const tokens = t.split(" ").filter(Boolean);
   const res = [], unknown = []; let words = [], pendingNum = null;
   const flush = qty => {
@@ -120,7 +127,7 @@ function parseItems(text) {
   };
   for (const tok of tokens) {
     if (tok === ",") continue;
-    if (/^\d+$/.test(tok)) {
+    if (/^\d+(\.\d+)?$/.test(tok)) {
       const n = +tok;
       if (words.length) flush(n);          // "reczniki 15"
       else pendingNum = n;                 // "15 recznikow"
@@ -189,7 +196,7 @@ async function handle(alts) {
   if (/koniec trasy|koniec tras|zakoncz trase/.test(t)) { log("Koniec trasy", "ok"); await finishRoute(true); return; }
   if (/^(cofnij|usun ostatni)/.test(t)) {
     const last = local.route.pop(); save(); ui();
-    if (last) { log("Cofnięto: " + last.client + " – " + last.item + " " + last.qty, "warn"); await say("Cofnięto"); } else await say("Nie ma czego cofnąć");
+    if (last) { log("Cofnięto: " + last.client + " – " + last.item + " " + fmtQty(last.qty, last.unit), "warn"); await say("Cofnięto"); } else await say("Nie ma czego cofnąć");
     return;
   }
   if (/nastepny klient|kolejny klient|zmiana klienta|koniec klienta|inny klient/.test(t)) {
@@ -215,8 +222,10 @@ async function handle(alts) {
   if (!local.routeId) local.routeId = newId();
   for (const { item, qty } of parsed.res) {
     if (qty === null || qty === undefined) { log("Brak ilości dla: " + item.name, "warn"); said.push(item.name + ", podaj ilość"); continue; }
-    local.route.push({ client: currentClient.name, item: item.name, qty, t: Date.now() });
-    log(currentClient.name + ": " + item.name + " × " + qty, "ok"); said.push(item.name + " " + qty);
+    const unit = unitOfItem(item), q = roundQty(qty, unit);
+    if (!q) { log("Za mała ilość dla: " + item.name, "warn"); said.push(item.name + ", podaj ilość"); continue; }
+    local.route.push({ client: currentClient.name, item: item.name, qty: q, unit, t: Date.now() });
+    log(currentClient.name + ": " + item.name + " × " + fmtQty(q, unit), "ok"); said.push(item.name + " " + sayQty(q, unit));
   }
   for (const u of parsed.unknown) log("Nieznany asortyment: „" + u + "”", "bad");
   save(); ui();
@@ -225,18 +234,29 @@ async function handle(alts) {
   await say(speech);
 }
 
+// ---------- jednostki ----------
+const unitOfItem = it => (it && it.unit === "kg") ? "kg" : "szt";
+const fmtNum = q => Number(q).toLocaleString("pl-PL", { maximumFractionDigits: 2 });
+const fmtQty = (q, unit) => fmtNum(q) + (unit === "kg" ? " kg" : " szt.");
+const sayQty = (q, unit) => fmtNum(q) + (unit === "kg" ? " kilogramów" : "");
+// ilość sztuk w całości, kilogramy z dokładnością do 0,01
+const roundQty = (q, unit) => unit === "kg" ? Math.round(q * 100) / 100 : Math.round(q);
+
 // ---------- summary & sending ----------
+// klient -> asortyment -> { qty, unit }
 function grouped(route) {
   const m = new Map();
   for (const r of route) {
     if (!m.has(r.client)) m.set(r.client, new Map());
-    const g = m.get(r.client); g.set(r.item, (g.get(r.item) || 0) + r.qty);
+    const g = m.get(r.client), unit = r.unit || "szt";
+    const cur = g.get(r.item) || { qty: 0, unit };
+    cur.qty = Math.round((cur.qty + r.qty) * 100) / 100; g.set(r.item, cur);
   }
   return m;
 }
 function summaryText(route) {
   let s = "";
-  for (const [c, items] of grouped(route)) { s += c + "\n"; for (const [i, q] of items) s += "  - " + i + ": " + q + " szt.\n"; }
+  for (const [c, items] of grouped(route)) { s += c + "\n"; for (const [i, v] of items) s += "  - " + i + ": " + fmtQty(v.qty, v.unit) + "\n"; }
   return s;
 }
 function renderSummary() {
@@ -244,7 +264,7 @@ function renderSummary() {
   let h = "<table><tr><th>Klient / asortyment</th><th class='n'>Ilość</th></tr>";
   for (const [c, items] of grouped(local.route)) {
     h += `<tr><td colspan=2><b>${esc(c)}</b></td></tr>`;
-    for (const [i, q] of items) h += `<tr><td>&nbsp;&nbsp;${esc(i)}</td><td class='n'>${q}</td></tr>`;
+    for (const [i, v] of items) h += `<tr><td>&nbsp;&nbsp;${esc(i)}</td><td class='n'>${fmtQty(v.qty, v.unit)}</td></tr>`;
   }
   $("#summary").innerHTML = h + "</table>";
 }
@@ -297,7 +317,7 @@ async function finishRoute(spoken) {
   if (!spoken && !confirm("Zakończyć trasę i wysłać podsumowanie?")) return;
   stop();
   const device = await deviceHints();
-  local.pending.push({ id: local.routeId || newId(), worker: local.worker, date: new Date().toISOString(), device, route: local.route.map(({ client, item, qty }) => ({ client, item, qty })) });
+  local.pending.push({ id: local.routeId || newId(), worker: local.worker, date: new Date().toISOString(), device, route: local.route.map(({ client, item, qty, unit }) => ({ client, item, qty, unit: unit || "szt" })) });
   local.route = []; local.routeId = null; mode = "client"; currentClient = null; save(); ui();
   const ok = await flushPending(true);
   const msg = ok ? "Koniec trasy. Podsumowanie wysłane." : "Koniec trasy. Nie udało się wysłać, spróbuję ponownie.";
@@ -310,7 +330,7 @@ async function loadHistory() {
   ul.innerHTML = list.length ? "" : "<li class='small'>Brak.</li>";
   for (const h of list) {
     const li = document.createElement("li");
-    li.innerHTML = `<span>${new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })} · <b>${esc(h.worker || "—")}</b><br><span class='small'>${h.clients} klientów, ${h.total} szt. ${h.mailedAt ? "· mail wysłany" : "· <span class='bad'>mail niewysłany</span>"}</span></span><span class='row'><button class='btn'>Wyślij ponownie</button></span>`;
+    li.innerHTML = `<span>${new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })} · <b>${esc(h.worker || "—")}</b><br><span class='small'>${h.clients} klientów${h.total ? ", " + fmtQty(h.total, "szt") : ""}${h.totalKg ? ", " + fmtQty(h.totalKg, "kg") : ""} ${h.mailedAt ? "· mail wysłany" : "· <span class='bad'>mail niewysłany</span>"}</span></span><span class='row'><button class='btn'>Wyślij ponownie</button></span>`;
     li.querySelector("button").onclick = async () => {
       try { await api("trasy", { method: "POST", body: { id: h.id, resend: true } }); alert("Wysłano ponownie."); }
       catch (e) { alert(e.message); }
@@ -340,6 +360,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
   document.querySelectorAll("section").forEach(s => s.classList.toggle("on", s.id === b.dataset.tab));
   if (b.dataset.tab === "klienci" || b.dataset.tab === "asort") loadCatalog();
+  if (b.dataset.tab === "grafik") loadGrafik();
 });
 
 // shared catalog lists
@@ -350,7 +371,14 @@ function renderList(kind) {
   $("#" + kind + "Count").textContent = arr.length;
   [...arr].sort((a, b) => a.name.localeCompare(b.name, "pl")).forEach(x => {
     const li = document.createElement("li");
-    li.innerHTML = `<span><b>${esc(x.name)}</b>${x.aliases?.length ? `<br><span class='small'>${esc(x.aliases.join(", "))}</span>` : ""}</span><span class='row'><button class='btn' data-e>Edytuj</button><button class='btn del' data-d>Usuń</button></span>`;
+    const unitBtn = kind === "a" ? `<button class='btn' data-u title='Zmień jednostkę'>${unitOfItem(x) === "kg" ? "kg" : "szt."}</button>` : "";
+    li.innerHTML = `<span><b>${esc(x.name)}</b>${kind === "a" ? ` <span class='small'>· liczone w ${unitOfItem(x) === "kg" ? "kilogramach" : "sztukach"}</span>` : ""}${x.aliases?.length ? `<br><span class='small'>${esc(x.aliases.join(", "))}</span>` : ""}</span><span class='row'>${unitBtn}<button class='btn' data-e>Edytuj</button><button class='btn del' data-d>Usuń</button></span>`;
+    const ub = li.querySelector("[data-u]");
+    if (ub) ub.onclick = () => {
+      const next = unitOfItem(x) === "kg" ? "szt" : "kg";
+      if (confirm(`Liczyć „${x.name}” w ${next === "kg" ? "kilogramach" : "sztukach"}? Zapisane wcześniej trasy się nie zmienią.`))
+        changeCatalog({ method: "PUT", body: { id: x.id, name: x.name, aliases: x.aliases || [], unit: next } });
+    };
     li.querySelector("[data-d]").onclick = () => {
       if (confirm("Usunąć „" + x.name + "”?")) changeCatalog({ method: "DELETE", query: "?id=" + encodeURIComponent(x.id) });
     };
@@ -365,7 +393,9 @@ function renderList(kind) {
 function addFrom(kind) {
   const n = $("#" + kind + "Name").value.trim(); if (!n) return;
   const aliases = $("#" + kind + "Alias").value.split(",").map(s => s.trim()).filter(Boolean);
-  changeCatalog({ method: "POST", body: { kind: listKey(kind), name: n, aliases } });
+  const body = { kind: listKey(kind), name: n, aliases };
+  if (kind === "a") body.unit = $("#aUnit").value;
+  changeCatalog({ method: "POST", body });
   $("#" + kind + "Name").value = ""; $("#" + kind + "Alias").value = "";
 }
 $("#cAdd").onclick = () => addFrom("c"); $("#aAdd").onclick = () => addFrom("a");
@@ -373,6 +403,113 @@ $("#cAdd").onclick = () => addFrom("c"); $("#aAdd").onclick = () => addFrom("a")
 // settings
 $("#sRepeat").checked = local.repeat !== false;
 $("#sRepeat").onchange = e => { local.repeat = e.target.checked; save(); };
+
+// ---------- grafik klientów (administrator) ----------
+function showAdmin() { $("#navGrafik").style.display = local.isAdmin ? "" : "none"; }
+const dk = d => { const x = new Date(d); return x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0"); };
+const g = { year: new Date().getFullYear(), month: new Date().getMonth(), rows: [], client: "", selected: dk(new Date()) };
+
+async function loadGrafik() {
+  const from = new Date(g.year, g.month, 1), to = new Date(g.year, g.month + 1, 1);
+  try { g.rows = await api(`grafik?od=${from.toISOString()}&do=${to.toISOString()}`); }
+  catch (e) { $("#gNote").textContent = "Nie można pobrać grafiku: " + e.message; g.rows = []; }
+  const names = new Set([...cat().clients.map(c => c.name), ...g.rows.map(r => r.client)]);
+  const list = [...names].sort((a, b) => a.localeCompare(b, "pl"));
+  if (!g.client || !names.has(g.client)) g.client = list.find(n => g.rows.some(r => r.client === n)) || list[0] || "";
+  $("#gClient").innerHTML = list.length ? list.map(n => {
+    const has = g.rows.some(r => r.client === n);
+    return `<option value="${esc(n)}">${esc(n)}${has ? "" : " (brak dostaw w tym miesiącu)"}</option>`;
+  }).join("") : `<option value="">Brak klientów</option>`;
+  $("#gClient").value = g.client;
+  renderGrafik();
+}
+// asortyment -> {qty, unit}, z rozróżnieniem jednostek
+function sumItems(rows) {
+  const m = new Map();
+  for (const r of rows) {
+    const key = r.item + "\u0000" + r.unit;
+    const cur = m.get(key) || { item: r.item, unit: r.unit, qty: 0, days: new Set() };
+    cur.qty = Math.round((cur.qty + r.qty) * 100) / 100; cur.days.add(dk(r.date)); m.set(key, cur);
+  }
+  return [...m.values()];
+}
+function renderGrafik() {
+  $("#gMonth").textContent = new Date(g.year, g.month, 1).toLocaleDateString("pl-PL", { month: "long", year: "numeric" });
+  const rows = g.rows.filter(r => r.client === g.client);
+  const byDay = {};
+  for (const r of rows) (byDay[dk(r.date)] ||= []).push(r);
+  const lead = (new Date(g.year, g.month, 1).getDay() + 6) % 7;
+  const days = new Date(g.year, g.month + 1, 0).getDate();
+  const today = dk(new Date());
+  let html = ["pn", "wt", "śr", "cz", "pt", "sb", "nd"].map(d => `<div class="dow">${d}</div>`).join("");
+  for (let i = 0; i < lead; i++) html += `<div class="day out"></div>`;
+  for (let d = 1; d <= days; d++) {
+    const key = dk(new Date(g.year, g.month, d));
+    const items = sumItems(byDay[key] || []);
+    const shown = items.slice(0, 3).map(i => `<span class="it">${esc(i.item)} ${fmtQty(i.qty, i.unit)}</span>`).join("");
+    html += `<button class="day${items.length ? " has" : ""}${key === today ? " today" : ""}${key === g.selected ? " sel" : ""}" data-day="${key}">
+      <span class="d">${d}</span>${shown}${items.length > 3 ? `<span class="more">+${items.length - 3} więcej</span>` : ""}${items.length ? `<span class="dot">●</span>` : ""}</button>`;
+  }
+  $("#gCal").innerHTML = html;
+  $("#gCal").querySelectorAll("[data-day]").forEach(b => b.onclick = () => { g.selected = b.dataset.day; renderGrafik(); });
+  renderGDay(byDay); renderGClientSum(rows); renderGAll();
+}
+function renderGDay(byDay) {
+  const [y, m, d] = g.selected.split("-").map(Number);
+  const inMonth = y === g.year && m - 1 === g.month;
+  $("#gDayTitle").textContent = (g.client ? g.client + " · " : "") + new Date(y, m - 1, d).toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" });
+  const rows = inMonth ? (byDay[g.selected] || []) : [];
+  if (!rows.length) { $("#gDay").innerHTML = "<p class='small'>Tego dnia nic nie zawieziono do tego klienta.</p>"; return; }
+  // kolejne trasy tego dnia osobno (godzina i pracownik), potem suma dnia
+  const routes = new Map();
+  for (const r of rows) { if (!routes.has(r.routeId)) routes.set(r.routeId, { date: r.date, worker: r.worker, rows: [] }); routes.get(r.routeId).rows.push(r); }
+  let h = "<table><tr><th>Asortyment</th><th class='n'>Ilość</th></tr>";
+  for (const rt of routes.values()) {
+    h += `<tr><td colspan=2 class='small'>Trasa ${new Date(rt.date).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })} · ${esc(rt.worker || "—")}</td></tr>`;
+    for (const i of sumItems(rt.rows)) h += `<tr><td>${esc(i.item)}</td><td class='n'>${fmtQty(i.qty, i.unit)}</td></tr>`;
+  }
+  if (routes.size > 1) {
+    h += "<tr><th colspan=2>Razem w dniu</th></tr>";
+    for (const i of sumItems(rows)) h += `<tr><td>${esc(i.item)}</td><td class='n'><b>${fmtQty(i.qty, i.unit)}</b></td></tr>`;
+  }
+  $("#gDay").innerHTML = h + "</table>";
+}
+function renderGClientSum(rows) {
+  $("#gClientSumTitle").textContent = "Podsumowanie miesiąca" + (g.client ? ": " + g.client : "");
+  const items = sumItems(rows).sort((a, b) => a.item.localeCompare(b.item, "pl"));
+  if (!items.length) { $("#gClientSum").innerHTML = "<p class='small'>Brak dostaw w tym miesiącu.</p>"; return; }
+  const deliveryDays = new Set(rows.map(r => dk(r.date))).size;
+  $("#gClientSum").innerHTML = `<p class='small' style='margin:0 0 6px'>Dni z dostawą: <b>${deliveryDays}</b></p><table><tr><th>Asortyment</th><th class='n'>Dni</th><th class='n'>Razem</th></tr>` +
+    items.map(i => `<tr><td>${esc(i.item)}</td><td class='n'>${i.days.size}</td><td class='n'><b>${fmtQty(i.qty, i.unit)}</b></td></tr>`).join("") + "</table>";
+}
+function allClientRows() {
+  const byClient = new Map();
+  for (const r of g.rows) { if (!byClient.has(r.client)) byClient.set(r.client, []); byClient.get(r.client).push(r); }
+  return [...byClient.entries()].sort((a, b) => a[0].localeCompare(b[0], "pl")).map(([client, rows]) => ({ client, items: sumItems(rows).sort((a, b) => a.item.localeCompare(b.item, "pl")) }));
+}
+function renderGAll() {
+  const all = allClientRows();
+  if (!all.length) { $("#gAll").innerHTML = "<p class='small'>Brak tras w tym miesiącu.</p>"; return; }
+  let h = "<table><tr><th>Klient / asortyment</th><th class='n'>Razem</th></tr>";
+  for (const c of all) {
+    h += `<tr><td colspan=2><b>${esc(c.client)}</b></td></tr>`;
+    for (const i of c.items) h += `<tr><td>&nbsp;&nbsp;${esc(i.item)}</td><td class='n'>${fmtQty(i.qty, i.unit)}</td></tr>`;
+  }
+  $("#gAll").innerHTML = h + "</table>";
+}
+$("#gCsv").onclick = () => {
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const lines = [["Klient", "Asortyment", "Ilość", "Jednostka", "Dni z dostawą"].map(q).join(";")];
+  for (const c of allClientRows()) for (const i of c.items) lines.push([c.client, i.item, String(i.qty).replace(".", ","), i.unit === "kg" ? "kg" : "szt.", i.days.size].map(q).join(";"));
+  const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = `pralnia-${g.year}-${String(g.month + 1).padStart(2, "0")}.csv`;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$("#gClient").onchange = e => { g.client = e.target.value; renderGrafik(); };
+$("#gPrev").onclick = () => { g.month--; if (g.month < 0) { g.month = 11; g.year--; } g.selected = dk(new Date(g.year, g.month, 1)); loadGrafik(); };
+$("#gNext").onclick = () => { g.month++; if (g.month > 11) { g.month = 0; g.year++; } g.selected = dk(new Date(g.year, g.month, 1)); loadGrafik(); };
+showAdmin();
 
 window.addEventListener("online", () => flushPending(false));
 renderList("c"); renderList("a"); ui();

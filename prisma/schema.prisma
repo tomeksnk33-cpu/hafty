@@ -206,6 +206,12 @@ enum LaundryCatalogKind {
   ITEM
 }
 
+/// W czym liczony jest asortyment pralni.
+enum LaundryUnit {
+  SZT
+  KG
+}
+
 /// Klient albo pozycja asortymentu pralni — wspólna lista dla wszystkich pracowników.
 model LaundryCatalogEntry {
   id        String             @id @default(cuid())
@@ -213,6 +219,8 @@ model LaundryCatalogEntry {
   name      String
   /// Inne nazwy i formy odmiany, po których rozpoznajemy wypowiedź.
   aliases   String[]           @default([])
+  /// Tylko dla asortymentu: sztuki albo kilogramy.
+  unit      LaundryUnit        @default(SZT)
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
@@ -246,7 +254,10 @@ model LaundryRouteEntry {
   position   Int
   clientName String
   itemName   String
-  quantity   Int
+  /// Sztuki (całkowite) albo kilogramy (z ułamkiem).
+  quantity   Float
+  /// Jednostka z chwili zapisu trasy — późniejsza zmiana w asortymencie jej nie zmienia.
+  unit       LaundryUnit @default(SZT)
 
   route LaundryRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
 
