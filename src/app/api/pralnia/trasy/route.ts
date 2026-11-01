@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { Prisma } from "@/generated/prisma/client";
+import { LaundryCatalogKind, LaundryUnit } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { laundryUser } from "@/lib/pralnia/access";
 import { describeDevice } from "@/lib/pralnia/device";
@@ -27,7 +28,8 @@ const routeSchema = z.object({
       z.object({
         client: z.string().trim().min(1).max(120),
         item: z.string().trim().min(1).max(120),
-        qty: z.number().finite().positive(),
+        qty: z.number().finite().positive().max(100_000),
+        unit: z.enum(["szt", "kg"]).optional(),
       }),
     )
     .max(2000)
@@ -47,7 +49,7 @@ export async function GET() {
       workerName: true,
       finishedAt: true,
       mailedAt: true,
-      entries: { select: { clientName: true, quantity: true } },
+      entries: { select: { clientName: true, quantity: true, unit: true } },
     },
   });
 
@@ -58,7 +60,8 @@ export async function GET() {
       date: r.finishedAt,
       mailedAt: r.mailedAt,
       count: r.entries.length,
-      total: r.entries.reduce((sum, e) => sum + e.quantity, 0),
+      total: r.entries.filter((e) => e.unit === LaundryUnit.SZT).reduce((sum, e) => sum + e.quantity, 0),
+      totalKg: Math.round(r.entries.filter((e) => e.unit === LaundryUnit.KG).reduce((sum, e) => sum + e.quantity, 0) * 100) / 100,
       clients: new Set(r.entries.map((e) => e.clientName)).size,
     })),
   );
@@ -91,6 +94,19 @@ export async function POST(request: Request) {
   if (!saved) {
     if (lines.length === 0) return NextResponse.json({ error: "Pusta trasa." }, { status: 400 });
 
+    // Jednostka z asortymentu na serwerze; telefon podaje ją na wypadek
+    // pozycji usuniętej z listy w trakcie trasy.
+    const catalogUnits = new Map(
+      (
+        await prisma.laundryCatalogEntry.findMany({
+          where: { kind: LaundryCatalogKind.ITEM },
+          select: { name: true, unit: true },
+        })
+      ).map((i) => [i.name.toLowerCase(), i.unit]),
+    );
+    const unitOf = (line: (typeof lines)[number]) =>
+      catalogUnits.get(line.item.toLowerCase()) ?? (line.unit === "kg" ? LaundryUnit.KG : LaundryUnit.SZT);
+
     try {
       saved = await prisma.laundryRoute.create({
         data: {
@@ -100,12 +116,17 @@ export async function POST(request: Request) {
           device: describeDevice(request.headers.get("user-agent"), device),
           finishedAt: date ? new Date(date) : new Date(),
           entries: {
-            create: lines.map((line, position) => ({
-              position,
-              clientName: line.client,
-              itemName: line.item,
-              quantity: Math.round(line.qty),
-            })),
+            create: lines.map((line, position) => {
+              const unit = unitOf(line);
+              return {
+                position,
+                clientName: line.client,
+                itemName: line.item,
+                unit,
+                // kilogramy z dokładnością do 0,01, sztuki w całości
+                quantity: unit === LaundryUnit.KG ? Math.round(line.qty * 100) / 100 : Math.round(line.qty),
+              };
+            }),
           },
         },
         include: { entries: { orderBy: { position: "asc" } } },

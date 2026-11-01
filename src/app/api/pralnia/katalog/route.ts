@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { LaundryCatalogKind } from "@/generated/prisma/enums";
+import { LaundryCatalogKind, LaundryUnit } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { laundryUser } from "@/lib/pralnia/access";
 
@@ -21,7 +21,12 @@ const entrySchema = z.object({
     .transform((list) =>
       [...new Set(list.map((a) => a.trim().slice(0, 120)).filter(Boolean))].slice(0, 30),
     ),
+  /** Tylko asortyment: „szt” albo „kg”. */
+  unit: z.enum(["szt", "kg"]).optional(),
 });
+
+const UNIT = { szt: LaundryUnit.SZT, kg: LaundryUnit.KG } as const;
+const unitOut = (unit: LaundryUnit) => (unit === LaundryUnit.KG ? "kg" : "szt");
 
 const createSchema = entrySchema.extend({ kind: kindSchema });
 const updateSchema = entrySchema.extend({ id: z.string().min(1) });
@@ -44,16 +49,17 @@ export async function GET() {
 
   const rows = await prisma.laundryCatalogEntry.findMany({
     orderBy: { name: "asc" },
-    select: { id: true, kind: true, name: true, aliases: true },
+    select: { id: true, kind: true, name: true, aliases: true, unit: true },
   });
 
-  const pick = (kind: LaundryCatalogKind) =>
-    rows.filter((r) => r.kind === kind).map(({ id, name, aliases }) => ({ id, name, aliases }));
-
   return NextResponse.json({
-    user: { name: user.name },
-    clients: pick(LaundryCatalogKind.CLIENT),
-    items: pick(LaundryCatalogKind.ITEM),
+    user: { name: user.name, isAdmin: user.isAdmin },
+    clients: rows
+      .filter((r) => r.kind === LaundryCatalogKind.CLIENT)
+      .map(({ id, name, aliases }) => ({ id, name, aliases })),
+    items: rows
+      .filter((r) => r.kind === LaundryCatalogKind.ITEM)
+      .map(({ id, name, aliases, unit }) => ({ id, name, aliases, unit: unitOut(unit) })),
   });
 }
 
@@ -64,13 +70,13 @@ export async function POST(request: Request) {
   const parsed = createSchema.safeParse(await readJson(request));
   if (!parsed.success) return invalid(parsed.error);
 
-  const { kind, name, aliases } = parsed.data;
+  const { kind, name, aliases, unit } = parsed.data;
   const entry = await prisma.laundryCatalogEntry.create({
-    data: { kind: KIND[kind], name, aliases },
-    select: { id: true, name: true, aliases: true },
+    data: { kind: KIND[kind], name, aliases, unit: UNIT[unit ?? "szt"] },
+    select: { id: true, name: true, aliases: true, unit: true },
   });
 
-  return NextResponse.json(entry, { status: 201 });
+  return NextResponse.json({ ...entry, unit: unitOut(entry.unit) }, { status: 201 });
 }
 
 export async function PUT(request: Request) {
@@ -80,14 +86,17 @@ export async function PUT(request: Request) {
   const parsed = updateSchema.safeParse(await readJson(request));
   if (!parsed.success) return invalid(parsed.error);
 
-  const { id, name, aliases } = parsed.data;
-  const { count } = await prisma.laundryCatalogEntry.updateMany({ where: { id }, data: { name, aliases } });
+  const { id, name, aliases, unit } = parsed.data;
+  const { count } = await prisma.laundryCatalogEntry.updateMany({
+    where: { id },
+    data: { name, aliases, ...(unit ? { unit: UNIT[unit] } : {}) },
+  });
 
   if (count === 0) {
     return NextResponse.json({ error: "Ktoś inny usunął tę pozycję. Odświeżono listę." }, { status: 404 });
   }
 
-  return NextResponse.json({ id, name, aliases });
+  return NextResponse.json({ id, name, aliases, unit });
 }
 
 export async function DELETE(request: Request) {
