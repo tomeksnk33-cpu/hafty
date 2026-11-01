@@ -1,6 +1,6 @@
 import "server-only";
 
-import { mailConfigured, sendMail } from "@/lib/pralnia/mail";
+import { mailConfigured, mailErrorText, sendMail } from "@/lib/mail";
 
 const esc = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -64,6 +64,6 @@ export async function mailAttendance({
     return null;
   } catch (error) {
     console.error("Wysyłka maila z listy obecności nieudana:", error);
-    return "Nie udało się wysłać maila: " + (error instanceof Error ? error.message : String(error));
+    return mailErrorText(error);
   }
 }

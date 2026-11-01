@@ -104,6 +104,14 @@ export default async function AppChooserPage() {
         <Link href="/konto" className="text-accent hover:underline">
           Moje konto
         </Link>
+        {user.isAdmin ? (
+          <>
+            {" · "}
+            <Link href="/poczta" className="text-accent hover:underline">
+              Sprawdź pocztę
+            </Link>
+          </>
+        ) : null}
       </p>
     </main>
   );
