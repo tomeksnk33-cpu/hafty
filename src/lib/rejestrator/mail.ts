@@ -1,7 +1,7 @@
 import "server-only";
 import "./tz";
 
-import nodemailer from "nodemailer";
+import { createTransport, mailErrorText, smtpConfig } from "@/lib/mail";
 
 import { buildReport } from "../../../public/rejestrator/core.js";
 
@@ -13,15 +13,7 @@ import { deleteValue, setValue, setValueIfAbsent } from "./store";
 // SMTP_SECURITY (ssl / starttls / brak) jest opcjonalne; domyślnie port 465 = ssl,
 // każdy inny = starttls.
 
-export function smtpConfig() {
-  const e = process.env;
-  const port = Number(e.SMTP_PORT || 465);
-  const security = (e.SMTP_SECURITY || (port === 465 ? "ssl" : "starttls")).toLowerCase();
-  return {
-    host: e.SMTP_HOST || "", port, security,
-    user: e.SMTP_USER || "", pass: e.SMTP_PASS || "", from: e.MAIL_FROM || e.SMTP_USER || "",
-  };
-}
+export { smtpConfig };
 
 export const smtpReady = () => {
   const c = smtpConfig();
@@ -44,15 +36,14 @@ async function send(day: string) {
   if (!s.recipients.length) throw new HttpError(400, "Brak odbiorców raportu. Kierownik może ich wpisać w zakładce „Raport”.");
   const c = smtpConfig();
   const r = buildReport(day, await reportData(day));
-  const transport = nodemailer.createTransport({
-    host: c.host, port: c.port, secure: c.security === "ssl", ignoreTLS: c.security === "brak",
-    requireTLS: c.security === "starttls", auth: c.user ? { user: c.user, pass: c.pass } : undefined,
-    connectionTimeout: 20_000,
-  });
-  await transport.sendMail({
-    from: c.from, to: s.recipients.join(", "), subject: r.subject, text: r.text, html: r.html,
-    attachments: [{ filename: r.filename, content: "﻿" + r.csv, contentType: "text/csv; charset=utf-8" }],
-  });
+  try {
+    await createTransport().sendMail({
+      from: c.from, to: s.recipients.join(", "), subject: r.subject, text: r.text, html: r.html,
+      attachments: [{ filename: r.filename, content: "﻿" + r.csv, contentType: "text/csv; charset=utf-8" }],
+    });
+  } catch (error) {
+    throw new HttpError(502, mailErrorText(error));
+  }
   return "wysłano do: " + s.recipients.join(", ");
 }
 

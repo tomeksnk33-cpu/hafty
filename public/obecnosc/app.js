@@ -245,12 +245,12 @@ async function send(person, type) {
       msg = r.name + ". Nie masz rozpoczętej pracy. Najpierw powiedz: rozpoczynam pracę.";
     } else if (type === "start") {
       showResult("ok", r.name, "Rozpoczęcie pracy: " + hm(r.startedAt));
-      log(r.name + ": rozpoczęcie " + hm(r.startedAt) + (r.mailError ? " (mail nie wysłany)" : ""), r.mailError ? "warn" : "ok");
+      log(r.name + ": rozpoczęcie " + hm(r.startedAt) + (r.mailError ? " · " + r.mailError : ""), r.mailError ? "warn" : "ok");
       msg = "Rozpoznano: " + r.name + ". Rozpoczęcie pracy o " + hm(r.startedAt) + ". Miłej pracy.";
     } else {
       const worked = dur(new Date(r.endedAt) - new Date(r.startedAt));
       showResult("ok", r.name, "Zakończenie pracy: " + hm(r.endedAt) + " · " + worked);
-      log(r.name + ": zakończenie " + hm(r.endedAt) + ", " + worked + (r.mailError ? " (mail nie wysłany)" : ""), r.mailError ? "warn" : "ok");
+      log(r.name + ": zakończenie " + hm(r.endedAt) + ", " + worked + (r.mailError ? " · " + r.mailError : ""), r.mailError ? "warn" : "ok");
       msg = "Rozpoznano: " + r.name + ". Koniec pracy o " + hm(r.endedAt) + ". Przepracowano " + worked.replace("h", "godzin").replace("min", "minut") + ". Do widzenia.";
     }
     if (r.mailError) console.warn(r.mailError);

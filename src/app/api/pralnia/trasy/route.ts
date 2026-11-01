@@ -5,6 +5,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { laundryUser } from "@/lib/pralnia/access";
 import { describeDevice } from "@/lib/pralnia/device";
+import { mailErrorText } from "@/lib/mail";
 import { mailConfigured, sendMail } from "@/lib/pralnia/mail";
 import { renderRouteMail } from "@/lib/pralnia/summary";
 
@@ -132,7 +133,7 @@ export async function POST(request: Request) {
         await prisma.laundryRoute.update({ where: { id }, data: { mailedAt } });
       } catch (error) {
         console.error("Wysyłka maila z trasą nieudana:", error);
-        mailError = "Nie udało się wysłać maila: " + (error instanceof Error ? error.message : String(error));
+        mailError = mailErrorText(error);
       }
     }
   }
