@@ -5,10 +5,10 @@ import { LaundryCatalogKind, LaundryUnit } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { laundryUser } from "@/lib/pralnia/access";
 
-// Wspólna lista klientów i asortymentu pralni. Tak jak w dawnej aplikacji z
-// PIN-em, zmieniać ją może każdy zalogowany pracownik — kierowcy dopisują
-// klientów w trasie. Każda zmiana dotyczy jednego wiersza, więc dwie osoby
-// edytujące naraz nie nadpisują sobie nawzajem całej listy.
+// Wspólna lista klientów i asortymentu pralni. Czytać ją musi każdy pracownik
+// pralni (rozpoznawanie mowy), zmieniać tylko administrator. Każda zmiana
+// dotyczy jednego wiersza, więc dwie osoby edytujące naraz nie nadpisują sobie
+// nawzajem całej listy.
 
 const kindSchema = z.enum(["clients", "items"]);
 const KIND = { clients: LaundryCatalogKind.CLIENT, items: LaundryCatalogKind.ITEM } as const;
@@ -64,7 +64,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { denied } = await laundryUser();
+  const { denied } = await laundryUser({ admin: true });
   if (denied) return denied;
 
   const parsed = createSchema.safeParse(await readJson(request));
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const { denied } = await laundryUser();
+  const { denied } = await laundryUser({ admin: true });
   if (denied) return denied;
 
   const parsed = updateSchema.safeParse(await readJson(request));
@@ -100,7 +100,7 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const { denied } = await laundryUser();
+  const { denied } = await laundryUser({ admin: true });
   if (denied) return denied;
 
   const id = new URL(request.url).searchParams.get("id");

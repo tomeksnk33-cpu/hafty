@@ -324,6 +324,7 @@ async function finishRoute(spoken) {
   if (spoken) await say(msg, { thenListen: false }); else log(msg, ok ? "ok" : "bad");
 }
 async function loadHistory() {
+  if (!local.isAdmin) return;
   const ul = $("#history");
   let list;
   try { list = await api("trasy"); } catch (e) { ul.innerHTML = `<li class='small'>Nie można pobrać: ${esc(e.message)}</li>`; return; }
@@ -405,7 +406,13 @@ $("#sRepeat").checked = local.repeat !== false;
 $("#sRepeat").onchange = e => { local.repeat = e.target.checked; save(); };
 
 // ---------- grafik klientów (administrator) ----------
-function showAdmin() { $("#navGrafik").style.display = local.isAdmin ? "" : "none"; }
+// Zwykły pracownik tylko zapisuje trasę; klienci, asortyment, historia i grafik są dla administratora.
+function showAdmin() {
+  $("#navGrafik").style.display = local.isAdmin ? "" : "none";
+  document.querySelectorAll(".adminOnly").forEach(el => { el.style.display = local.isAdmin ? "" : "none"; });
+  const on = document.querySelector("nav button.on");
+  if (!local.isAdmin && on && on.style.display === "none") document.querySelector("nav button[data-tab=trasa]").click();
+}
 const dk = d => { const x = new Date(d); return x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0"); };
 const g = { year: new Date().getFullYear(), month: new Date().getMonth(), rows: [], client: "", selected: dk(new Date()) };
 
