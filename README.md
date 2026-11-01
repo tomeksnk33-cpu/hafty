@@ -27,8 +27,8 @@ klienta i wszystkich klientów w miesiącu oraz eksport CSV.
 
 - Klienci i asortyment pralni (z „innymi nazwami” do rozpoznawania mowy) oraz
   zakończone trasy są w bazie, w tabelach `LaundryCatalogEntry`, `LaundryRoute`
-  i `LaundryRouteEntry`. To osobna lista od klientów haftów. Zmieniać ją może
-  każdy zalogowany pracownik.
+  i `LaundryRouteEntry`. To osobna lista od klientów haftów. Zmieniać ją może tylko
+  administrator; zwykły pracownik pralni widzi tylko zakładki Trasa i Ustawienia.
 - Pracownik loguje się swoim kontem; jego imię z konta trafia do maila. Nie ma już PIN-u.
 - Bieżąca trasa jest zapisywana w telefonie, więc brak zasięgu (albo wygaśnięcie
   sesji) nic nie psuje: niewysłana trasa czeka i wysyła się sama, gdy wróci

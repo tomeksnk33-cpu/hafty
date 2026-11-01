@@ -82,8 +82,8 @@ main:has(#grafik.on){max-width:1040px}
 <header class="row" style="justify-content:space-between"><h1><a href="/" title="Wybór aplikacji">‹ Trasa pralni</a></h1><span id="who" style="font-size:13px;opacity:.9"></span></header>
 <nav>
   <button data-tab="trasa" class="on">Trasa</button>
-  <button data-tab="klienci">Klienci</button>
-  <button data-tab="asort">Asortyment</button>
+  <button data-tab="klienci" class="adminOnly" style="display:none">Klienci</button>
+  <button data-tab="asort" class="adminOnly" style="display:none">Asortyment</button>
   <button data-tab="grafik" id="navGrafik" style="display:none">Grafik</button>
   <button data-tab="ust">Ustawienia</button>
 </nav>
@@ -113,7 +113,7 @@ main:has(#grafik.on){max-width:1040px}
       <button class="btn del" id="clearRoute">Wyczyść trasę</button>
     </div>
   </div>
-  <div class="card">
+  <div class="card adminOnly" style="display:none">
     <div class="row" style="justify-content:space-between"><h2>Ostatnie trasy (wszyscy pracownicy)</h2><button class="btn" id="histRefresh">Odśwież</button></div>
     <ul class="list" id="history"></ul>
   </div>
