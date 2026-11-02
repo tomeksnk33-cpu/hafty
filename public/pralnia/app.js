@@ -367,6 +367,15 @@ async function finishRoute(spoken) {
   const msg = ok ? "Koniec trasy. Podsumowanie wysłane." : "Koniec trasy. Nie udało się wysłać, spróbuję ponownie.";
   if (spoken) await say(msg, { thenListen: false }); else log(msg, ok ? "ok" : "bad");
 }
+// usunięcie całej trasy (np. testowej) — tylko administrator
+async function deleteRoute(id, label) {
+  if (!confirm(`Usunąć całą trasę ${label}? Tego nie da się cofnąć.`)) return false;
+  try { await api("trasy?id=" + encodeURIComponent(id), { method: "DELETE" }); }
+  catch (e) { alert("Nie usunięto: " + e.message); return false; }
+  loadHistory();
+  if (document.querySelector("#grafik.on")) loadGrafik();
+  return true;
+}
 async function loadHistory() {
   if (!local.isAdmin) return;
   const ul = $("#history");
@@ -375,8 +384,9 @@ async function loadHistory() {
   ul.innerHTML = list.length ? "" : "<li class='small'>Brak.</li>";
   for (const h of list) {
     const li = document.createElement("li");
-    li.innerHTML = `<span>${new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })} · <b>${esc(h.worker || "—")}</b><br><span class='small'>${h.clients} klientów${h.total ? ", " + fmtQty(h.total, "szt") : ""}${h.totalKg ? ", " + fmtQty(h.totalKg, "kg") : ""} ${h.mailedAt ? "· mail wysłany" : "· <span class='bad'>mail niewysłany</span>"}</span></span><span class='row'><button class='btn'>Wyślij ponownie</button></span>`;
-    li.querySelector("button").onclick = async () => {
+    li.innerHTML = `<span>${new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })} · <b>${esc(h.worker || "—")}</b><br><span class='small'>${h.clients} klientów${h.total ? ", " + fmtQty(h.total, "szt") : ""}${h.totalKg ? ", " + fmtQty(h.totalKg, "kg") : ""} ${h.mailedAt ? "· mail wysłany" : "· <span class='bad'>mail niewysłany</span>"}</span></span><span class='row'><button class='btn' data-r>Wyślij ponownie</button><button class='btn del' data-x>Usuń</button></span>`;
+    li.querySelector("[data-x]").onclick = () => deleteRoute(h.id, new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" }) + " · " + (h.worker || "—"));
+    li.querySelector("[data-r]").onclick = async () => {
       try { await api("trasy", { method: "POST", body: { id: h.id, resend: true } }); alert("Wysłano ponownie."); }
       catch (e) { alert(e.message); }
       loadHistory();
@@ -520,14 +530,23 @@ function renderGDay(byDay) {
   if (!rows.length) { $("#gDay").innerHTML = "<p class='small'>Tego dnia nic nie zawieziono" + (g.client === "*" ? "." : " do tego klienta.") + "</p>"; return; }
   if (g.client === "*") {
     // wszyscy klienci: według asortymentu, pod spodem klienci
-    $("#gDay").innerHTML = itemTable(rows, "Asortyment / klient"); return;
+    // lista tras tego dnia (do usunięcia testowych)
+    const seen = new Map();
+    for (const r of rows) if (!seen.has(r.routeId)) seen.set(r.routeId, r);
+    let t = "<h2 style='margin-top:16px'>Trasy tego dnia</h2><table>";
+    for (const r of seen.values()) {
+      const when = new Date(r.date).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+      t += `<tr><td class='small'>Trasa ${when} · ${esc(r.worker || "—")}</td><td class='n'><button class='btn del' data-route="${esc(r.routeId)}" data-label="${esc(dk(r.date) + " " + when + " · " + (r.worker || "—"))}">Usuń trasę</button></td></tr>`;
+    }
+    $("#gDay").innerHTML = itemTable(rows, "Asortyment / klient") + t + "</table>"; wireDayDelete(); return;
   }
   // kolejne trasy tego dnia osobno (godzina i pracownik), potem suma dnia
   const routes = new Map();
-  for (const r of rows) { if (!routes.has(r.routeId)) routes.set(r.routeId, { date: r.date, worker: r.worker, rows: [] }); routes.get(r.routeId).rows.push(r); }
+  for (const r of rows) { if (!routes.has(r.routeId)) routes.set(r.routeId, { id: r.routeId, date: r.date, worker: r.worker, rows: [] }); routes.get(r.routeId).rows.push(r); }
   let h = "<table><tr><th>Asortyment</th><th class='n'>Ilość</th></tr>";
   for (const rt of routes.values()) {
-    h += `<tr><td colspan=2 class='small'>Trasa ${new Date(rt.date).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })} · ${esc(rt.worker || "—")}</td></tr>`;
+    const when = new Date(rt.date).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+    h += `<tr><td class='small'>Trasa ${when} · ${esc(rt.worker || "—")}</td><td class='n'><button class='btn del' data-route="${esc(rt.id)}" data-label="${esc(dk(rt.date) + " " + when + " · " + (rt.worker || "—"))}" title='Usuwa całą trasę, także u innych klientów'>Usuń trasę</button></td></tr>`;
     for (const i of sumItems(rt.rows)) h += `<tr><td>${esc(i.label)}</td><td class='n'>${fmtEntry(i)}</td></tr>`;
   }
   if (routes.size > 1) {
@@ -535,6 +554,13 @@ function renderGDay(byDay) {
     for (const i of sumItems(rows)) h += `<tr><td>${esc(i.label)}</td><td class='n'><b>${fmtEntry(i)}</b></td></tr>`;
   }
   $("#gDay").innerHTML = h + "</table>";
+  wireDayDelete();
+}
+// przyciski „Usuń trasę” w oknie dnia
+function wireDayDelete() {
+  $("#gDay").querySelectorAll("[data-route]").forEach(b => b.onclick = async () => {
+    if (await deleteRoute(b.dataset.route, b.dataset.label)) $("#gDialog").close?.();
+  });
 }
 function renderGClientSum(rows) {
   $("#gClientSumTitle").textContent = "Razem w miesiącu" + (g.client === "*" ? " – wszyscy klienci" : ": " + g.client);
