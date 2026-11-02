@@ -1,20 +1,32 @@
-export type Unit = "SZT" | "KG";
-export type RouteLine = { clientName: string; itemName: string; quantity: number; unit?: Unit };
+export type Unit = "SZT" | "KG" | "SZT_KG";
+export type RouteLine = {
+  clientName: string;
+  itemName: string;
+  quantity: number;
+  unit?: Unit;
+  weightKg?: number | null;
+};
 
-/** „12,5 kg” albo „20 szt.” */
-export function formatQty(quantity: number, unit: Unit = "SZT") {
-  const n = quantity.toLocaleString("pl-PL", { maximumFractionDigits: 2 });
-  return unit === "KG" ? `${n} kg` : `${n} szt.`;
+const num = (n: number) => n.toLocaleString("pl-PL", { maximumFractionDigits: 2 });
+
+/** „12,5 kg”, „20 szt.” albo „20 szt. · 8 kg” */
+export function formatQty(quantity: number, unit: Unit = "SZT", weightKg?: number | null) {
+  if (unit === "KG") return `${num(quantity)} kg`;
+  if (unit === "SZT_KG") return `${num(quantity)} szt. · ${num(weightKg ?? 0)} kg`;
+  return `${num(quantity)} szt.`;
 }
 
-type Totals = Map<string, { quantity: number; unit: Unit }>;
+type Totals = Map<string, { quantity: number; weightKg: number; unit: Unit }>;
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
 
 function add(map: Totals, line: RouteLine) {
   const unit = line.unit ?? "SZT";
   // ta sama nazwa w dwóch jednostkach (zmiana w asortymencie) liczy się osobno
   const key = `${line.itemName}\u0000${unit}`;
-  const cur = map.get(key) ?? { quantity: 0, unit };
-  cur.quantity = Math.round((cur.quantity + line.quantity) * 100) / 100;
+  const cur = map.get(key) ?? { quantity: 0, weightKg: 0, unit };
+  cur.quantity = r2(cur.quantity + line.quantity);
+  cur.weightKg = r2(cur.weightKg + (line.weightKg ?? 0));
   map.set(key, cur);
 }
 
@@ -69,18 +81,18 @@ export function renderRouteMail({
   for (const [client, items] of byClient) {
     text += `${client}\n`;
     html += `<tr><td colspan="2" style="background:#eef3fa;font-weight:bold">${esc(client)}</td></tr>`;
-    for (const [key, { quantity, unit }] of items) {
-      text += `  - ${itemName(key)}: ${formatQty(quantity, unit)}\n`;
-      html += `<tr><td style="padding-left:18px;border-bottom:1px solid #eee">${esc(itemName(key))}</td><td align="right" style="border-bottom:1px solid #eee">${esc(formatQty(quantity, unit))}</td></tr>`;
+    for (const [key, { quantity, unit, weightKg }] of items) {
+      text += `  - ${itemName(key)}: ${formatQty(quantity, unit, weightKg)}\n`;
+      html += `<tr><td style="padding-left:18px;border-bottom:1px solid #eee">${esc(itemName(key))}</td><td align="right" style="border-bottom:1px solid #eee">${esc(formatQty(quantity, unit, weightKg))}</td></tr>`;
     }
     text += "\n";
   }
 
   text += "RAZEM:\n";
   html += `<tr><td colspan="2" style="background:#1f5fa8;color:#fff;font-weight:bold">RAZEM</td></tr>`;
-  for (const [key, { quantity, unit }] of totals) {
-    text += `  - ${itemName(key)}: ${formatQty(quantity, unit)}\n`;
-    html += `<tr><td style="padding-left:18px">${esc(itemName(key))}</td><td align="right"><b>${esc(formatQty(quantity, unit))}</b></td></tr>`;
+  for (const [key, { quantity, unit, weightKg }] of totals) {
+    text += `  - ${itemName(key)}: ${formatQty(quantity, unit, weightKg)}\n`;
+    html += `<tr><td style="padding-left:18px">${esc(itemName(key))}</td><td align="right"><b>${esc(formatQty(quantity, unit, weightKg))}</b></td></tr>`;
   }
   html += "</table>";
 

@@ -19,8 +19,9 @@ Aplikacja w telefonie do zapisywania głosem, co zostało zrobione u klientów n
 3. „Następny klient” przechodzi do kolejnego klienta, „cofnij” usuwa ostatni wpis.
 4. „Koniec trasy” wysyła mail z podsumowaniem (każdy klient osobno i suma całej trasy).
 
-Asortyment liczy się w sztukach albo w kilogramach (ustawienie przy pozycji w
-zakładce Asortyment). Kilogramy można podać z przecinkiem („pościel 12,5 kilo”)
+Asortyment liczy się w sztukach, w kilogramach albo w sztukach i kilogramach
+naraz (ustawienie przy pozycji w zakładce Asortyment; przy tej ostatniej
+pracownik mówi np. „ręczniki 20 sztuk 8 kilo”). Kilogramy można podać z przecinkiem („pościel 12,5 kilo”)
 albo z „pół” / „półtora”. Administrator ma zakładkę **Grafik**: kalendarz
 miesiąca osobno dla każdego klienta z wykazem dostaw każdego dnia, podsumowanie
 klienta i wszystkich klientów w miesiącu oraz eksport CSV.

@@ -101,7 +101,7 @@ main:has(#grafik.on){max-width:1040px}
       <input id="typed" placeholder="Albo wpisz to, co byś powiedział…" style="flex:1">
       <button class="btn" id="typedGo">Wyślij</button>
     </div>
-    <p class="small" style="margin:8px 0 0">Komendy: <b>„następny klient”</b>, <b>„cofnij”</b>, <b>„koniec trasy”</b>. Przykład: „prześcieradła 20”, „ręczniki 15, poszewki 30”, „pościel 12,5 kilo”.</p>
+    <p class="small" style="margin:8px 0 0">Komendy: <b>„następny klient”</b>, <b>„cofnij”</b>, <b>„koniec trasy”</b>. Przykład: „prześcieradła 20”, „ręczniki 15, poszewki 30”, „pościel 12,5 kilo”, „ręczniki 20 sztuk 8 kilo”.</p>
     <div class="log" id="log"></div>
   </div>
   <div class="card">
@@ -139,7 +139,7 @@ main:has(#grafik.on){max-width:1040px}
     <label>Inne formy / nazwy, po przecinku</label><input id="aAlias" placeholder="np. prześcieradła, prześcieradeł">
     <label for="aUnit">Liczone w</label>
     <select id="aUnit" style="font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 10px">
-      <option value="szt">sztukach</option><option value="kg">kilogramach</option>
+      <option value="szt">sztukach</option><option value="kg">kilogramach</option><option value="szt_kg">sztukach i kilogramach</option>
     </select>
     <div class="row" style="margin-top:10px"><button class="btn pri" id="aAdd">Dodaj</button></div>
   </div>

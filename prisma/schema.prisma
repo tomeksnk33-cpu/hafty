@@ -210,6 +210,8 @@ enum LaundryCatalogKind {
 enum LaundryUnit {
   SZT
   KG
+  /// Sztuki i kilogramy naraz (np. ręczniki: liczba i waga).
+  SZT_KG
 }
 
 /// Klient albo pozycja asortymentu pralni — wspólna lista dla wszystkich pracowników.
@@ -254,8 +256,10 @@ model LaundryRouteEntry {
   position   Int
   clientName String
   itemName   String
-  /// Sztuki (całkowite) albo kilogramy (z ułamkiem).
+  /// Sztuki (całkowite) albo kilogramy (z ułamkiem) — dla SZT_KG sztuki.
   quantity   Float
+  /// Waga w kilogramach, tylko gdy unit = SZT_KG.
+  weightKg   Float?
   /// Jednostka z chwili zapisu trasy — późniejsza zmiana w asortymencie jej nie zmienia.
   unit       LaundryUnit @default(SZT)
 

@@ -105,7 +105,9 @@ function wordsToDigits(t) {
   if (acc !== null) out.push(String(acc));
   return out.join(" ");
 }
-// "przescieradla 20 reczniki 15" / "20 przescieradel i 15 recznikow" -> [{item,qty}], plus unknown pieces
+// "przescieradla 20 reczniki 15" / "20 przescieradel i 15 recznikow" /
+// "reczniki 20 sztuk 12,5 kilo" -> [{ item, qtys: [{ n, unit }] }], plus unknown pieces.
+// unit przy liczbie: "kg", "szt" albo null, gdy pracownik nie powiedział jednostki.
 function parseItems(text) {
   // "12,5" / "12.5" -> "12 przecinek 5", żeby przecinek przetrwał norm()
   const marked = String(text).replace(/(\d)\s*[,.]\s*(\d)/g, "$1 przecinek $2");
@@ -113,30 +115,42 @@ function parseItems(text) {
     .replace(/\b(\d+) przecinek (\d+)\b/g, "$1.$2")
     .replace(/\b(\d+(?:\.\d+)?) i pol\b/g, (m, a) => String(+a + 0.5))
     .replace(/\bpoltora\b/g, "1.5").replace(/\bpol\b/g, "0.5")
-    .replace(/\b(i|oraz|sztuk|sztuki|sztuka|szt|razy|po|kilogramow|kilogramy|kilogram|kilogramach|kilo|kg|kile)\b/g, " ")
-    .replace(/(\d)\s+(?=\d)/g, "$1 , ");
-  const tokens = t.split(" ").filter(Boolean);
-  const res = [], unknown = []; let words = [], pendingNum = null;
-  const flush = qty => {
-    if (!words.length) return;
-    const phrase = words.join(" ");
+    .replace(/\b(kilogramow|kilogramy|kilogram|kilogramach|kilograma|kilo|kg|kile)\b/g, " #kg ")
+    .replace(/\b(sztuk|sztuki|sztuka|szt)\b/g, " #szt ")
+    .replace(/\b(i|oraz|razy|po|a|na|wagi|waga)\b/g, " ");
+  const toks = t.split(" ").filter(Boolean);
+  const res = [], unknown = [];
+  let cur = null, pending = [];
+  const isNum = x => /^\d+(\.\d+)?$/.test(x);
+  // druga liczba przy tej samej pozycji tylko wtedy, gdy jednostki są różne
+  const canTake = (c, q) => c.qtys.length === 0 || (c.qtys.length === 1 && (q.unit || c.qtys[0].unit) && q.unit !== c.qtys[0].unit);
+  const finish = () => {
+    if (!cur) return;
+    const phrase = cur.words.join(" ");
     let it = findItem(phrase);
-    if (!it && words.length > 1) { for (const w of words) { it = findItem(w); if (it) break; } }
-    if (it) res.push({ item: it, qty }); else unknown.push(phrase);
-    words = [];
+    if (!it && cur.words.length > 1) { for (const w of cur.words) { it = findItem(w); if (it) break; } }
+    if (it) res.push({ item: it, qtys: cur.qtys }); else unknown.push(phrase);
+    cur = null;
   };
-  for (const tok of tokens) {
-    if (tok === ",") continue;
-    if (/^\d+(\.\d+)?$/.test(tok)) {
-      const n = +tok;
-      if (words.length) flush(n);          // "reczniki 15"
-      else pendingNum = n;                 // "15 recznikow"
-    } else {
-      if (pendingNum !== null) { words.push(tok); flush(pendingNum); pendingNum = null; }
-      else words.push(tok);
+  for (let i = 0; i < toks.length; i++) {
+    const tok = toks[i];
+    if (tok === "#kg" || tok === "#szt") continue; // jednostka bez liczby
+    if (isNum(tok)) {
+      const next = toks[i + 1];
+      const unit = next === "#kg" ? "kg" : next === "#szt" ? "szt" : null;
+      if (unit) i++;
+      const q = { n: +tok, unit };
+      if (cur && cur.style === "word" && canTake(cur, q)) cur.qtys.push(q);          // "reczniki 15 (sztuk 12 kg)"
+      else if (cur && cur.style === "num" && unit && !pending.length && canTake(cur, q)) cur.qtys.push(q); // "20 recznikow 12 kilo"
+      else { finish(); pending.push(q); }                                              // "15 recznikow"
+      continue;
     }
+    if (cur && cur.style === "word" && !cur.qtys.length) { cur.words.push(tok); continue; } // nazwa z kilku słów
+    finish();
+    cur = { words: [tok], qtys: pending, style: pending.length ? "num" : "word" };
+    pending = [];
   }
-  if (words.length) flush(null);
+  finish();
   return { res, unknown };
 }
 
@@ -196,7 +210,7 @@ async function handle(alts) {
   if (/koniec trasy|koniec tras|zakoncz trase/.test(t)) { log("Koniec trasy", "ok"); await finishRoute(true); return; }
   if (/^(cofnij|usun ostatni)/.test(t)) {
     const last = local.route.pop(); save(); ui();
-    if (last) { log("Cofnięto: " + last.client + " – " + last.item + " " + fmtQty(last.qty, last.unit), "warn"); await say("Cofnięto"); } else await say("Nie ma czego cofnąć");
+    if (last) { log("Cofnięto: " + last.client + " – " + last.item + " " + fmtEntry(last), "warn"); await say("Cofnięto"); } else await say("Nie ma czego cofnąć");
     return;
   }
   if (/nastepny klient|kolejny klient|zmiana klienta|koniec klienta|inny klient/.test(t)) {
@@ -220,12 +234,12 @@ async function handle(alts) {
   }
   const said = [];
   if (!local.routeId) local.routeId = newId();
-  for (const { item, qty } of parsed.res) {
-    if (qty === null || qty === undefined) { log("Brak ilości dla: " + item.name, "warn"); said.push(item.name + ", podaj ilość"); continue; }
-    const unit = unitOfItem(item), q = roundQty(qty, unit);
-    if (!q) { log("Za mała ilość dla: " + item.name, "warn"); said.push(item.name + ", podaj ilość"); continue; }
-    local.route.push({ client: currentClient.name, item: item.name, qty: q, unit, t: Date.now() });
-    log(currentClient.name + ": " + item.name + " × " + fmtQty(q, unit), "ok"); said.push(item.name + " " + sayQty(q, unit));
+  for (const { item, qtys } of parsed.res) {
+    const e = resolveQty(item, qtys);
+    if (e.missing) { log(item.name + ": " + e.missing, "warn"); said.push(item.name + ", " + e.missing); continue; }
+    const entry = { client: currentClient.name, item: item.name, ...e, t: Date.now() };
+    local.route.push(entry);
+    log(currentClient.name + ": " + item.name + " × " + fmtEntry(entry), "ok"); said.push(item.name + " " + sayEntry(entry));
   }
   for (const u of parsed.unknown) log("Nieznany asortyment: „" + u + "”", "bad");
   save(); ui();
@@ -235,28 +249,57 @@ async function handle(alts) {
 }
 
 // ---------- jednostki ----------
-const unitOfItem = it => (it && it.unit === "kg") ? "kg" : "szt";
+// "szt" (sztuki), "kg" (kilogramy) albo "szt_kg" (sztuki i kilogramy naraz).
+// Wpis trasy: { unit, qty, kg } — qty to sztuki albo (dla "kg") kilogramy, kg tylko przy "szt_kg".
+const unitOfItem = it => (it && (it.unit === "kg" || it.unit === "szt_kg")) ? it.unit : "szt";
+const unitLabel = u => u === "kg" ? "kilogramach" : u === "szt_kg" ? "sztukach i kilogramach" : "sztukach";
+const unitShort = u => u === "kg" ? "kg" : u === "szt_kg" ? "szt.+kg" : "szt.";
 const fmtNum = q => Number(q).toLocaleString("pl-PL", { maximumFractionDigits: 2 });
 const fmtQty = (q, unit) => fmtNum(q) + (unit === "kg" ? " kg" : " szt.");
-const sayQty = (q, unit) => fmtNum(q) + (unit === "kg" ? " kilogramów" : "");
-// ilość sztuk w całości, kilogramy z dokładnością do 0,01
-const roundQty = (q, unit) => unit === "kg" ? Math.round(q * 100) / 100 : Math.round(q);
+const fmtEntry = v => v.unit === "szt_kg" ? fmtQty(v.qty, "szt") + " · " + fmtQty(v.kg, "kg") : fmtQty(v.qty, v.unit);
+const sayEntry = v => v.unit === "szt_kg" ? fmtNum(v.qty) + " sztuk, " + fmtNum(v.kg) + " kilogramów" : fmtNum(v.qty) + (v.unit === "kg" ? " kilogramów" : "");
+const r2 = x => Math.round(x * 100) / 100;
+// liczby z wypowiedzi -> wpis; sztuki w całości, kilogramy z dokładnością do 0,01
+function resolveQty(item, qtys) {
+  const unit = unitOfItem(item);
+  if (!qtys.length) return { missing: unit === "szt_kg" ? "podaj sztuki i kilogramy" : "podaj ilość" };
+  if (unit === "szt_kg") {
+    let pcs = qtys.find(q => q.unit === "szt"), kg = qtys.find(q => q.unit === "kg");
+    const bare = qtys.filter(q => !q.unit);
+    if (!pcs && bare.length) pcs = bare.shift();
+    if (!kg && bare.length) kg = bare.shift();
+    if (!pcs || !kg) return { missing: !pcs ? "podaj też liczbę sztuk" : "podaj też kilogramy" };
+    const p = Math.round(pcs.n), k = r2(kg.n);
+    if (!p || !k) return { missing: "podaj ilość" };
+    return { unit, qty: p, kg: k };
+  }
+  const q = qtys.find(x => x.unit === unit) || qtys[0];
+  const n = unit === "kg" ? r2(q.n) : Math.round(q.n);
+  if (!n) return { missing: "podaj ilość" };
+  return { unit, qty: n };
+}
 
 // ---------- summary & sending ----------
-// klient -> asortyment -> { qty, unit }
+// dodaje wpis do sumy { unit, qty, kg } pod kluczem asortyment+jednostka
+function addTo(map, label, r) {
+  const unit = r.unit || "szt", key = label + "\u0000" + unit;
+  const cur = map.get(key) || { label, unit, qty: 0, kg: 0, days: new Set() };
+  cur.qty = r2(cur.qty + r.qty); cur.kg = r2(cur.kg + (r.kg || 0));
+  if (r.date) cur.days.add(dk(r.date));
+  map.set(key, cur);
+}
+// klient -> (asortyment+jednostka) -> { label, unit, qty, kg }
 function grouped(route) {
   const m = new Map();
   for (const r of route) {
     if (!m.has(r.client)) m.set(r.client, new Map());
-    const g = m.get(r.client), unit = r.unit || "szt";
-    const cur = g.get(r.item) || { qty: 0, unit };
-    cur.qty = Math.round((cur.qty + r.qty) * 100) / 100; g.set(r.item, cur);
+    addTo(m.get(r.client), r.item, r);
   }
   return m;
 }
 function summaryText(route) {
   let s = "";
-  for (const [c, items] of grouped(route)) { s += c + "\n"; for (const [i, v] of items) s += "  - " + i + ": " + fmtQty(v.qty, v.unit) + "\n"; }
+  for (const [c, items] of grouped(route)) { s += c + "\n"; for (const v of items.values()) s += "  - " + v.label + ": " + fmtEntry(v) + "\n"; }
   return s;
 }
 function renderSummary() {
@@ -264,7 +307,7 @@ function renderSummary() {
   let h = "<table><tr><th>Klient / asortyment</th><th class='n'>Ilość</th></tr>";
   for (const [c, items] of grouped(local.route)) {
     h += `<tr><td colspan=2><b>${esc(c)}</b></td></tr>`;
-    for (const [i, v] of items) h += `<tr><td>&nbsp;&nbsp;${esc(i)}</td><td class='n'>${fmtQty(v.qty, v.unit)}</td></tr>`;
+    for (const v of items.values()) h += `<tr><td>&nbsp;&nbsp;${esc(v.label)}</td><td class='n'>${fmtEntry(v)}</td></tr>`;
   }
   $("#summary").innerHTML = h + "</table>";
 }
@@ -317,7 +360,7 @@ async function finishRoute(spoken) {
   if (!spoken && !confirm("Zakończyć trasę i wysłać podsumowanie?")) return;
   stop();
   const device = await deviceHints();
-  local.pending.push({ id: local.routeId || newId(), worker: local.worker, date: new Date().toISOString(), device, route: local.route.map(({ client, item, qty, unit }) => ({ client, item, qty, unit: unit || "szt" })) });
+  local.pending.push({ id: local.routeId || newId(), worker: local.worker, date: new Date().toISOString(), device, route: local.route.map(({ client, item, qty, unit, kg }) => ({ client, item, qty, unit: unit || "szt", ...(unit === "szt_kg" ? { kg } : {}) })) });
   local.route = []; local.routeId = null; mode = "client"; currentClient = null; save(); ui();
   const ok = await flushPending(true);
   const msg = ok ? "Koniec trasy. Podsumowanie wysłane." : "Koniec trasy. Nie udało się wysłać, spróbuję ponownie.";
@@ -372,12 +415,14 @@ function renderList(kind) {
   $("#" + kind + "Count").textContent = arr.length;
   [...arr].sort((a, b) => a.name.localeCompare(b.name, "pl")).forEach(x => {
     const li = document.createElement("li");
-    const unitBtn = kind === "a" ? `<button class='btn' data-u title='Zmień jednostkę'>${unitOfItem(x) === "kg" ? "kg" : "szt."}</button>` : "";
-    li.innerHTML = `<span><b>${esc(x.name)}</b>${kind === "a" ? ` <span class='small'>· liczone w ${unitOfItem(x) === "kg" ? "kilogramach" : "sztukach"}</span>` : ""}${x.aliases?.length ? `<br><span class='small'>${esc(x.aliases.join(", "))}</span>` : ""}</span><span class='row'>${unitBtn}<button class='btn' data-e>Edytuj</button><button class='btn del' data-d>Usuń</button></span>`;
+    const unitBtn = kind === "a" ? `<button class='btn' data-u title='Zmień jednostkę'>${unitShort(unitOfItem(x))}</button>` : "";
+    li.innerHTML = `<span><b>${esc(x.name)}</b>${kind === "a" ? ` <span class='small'>· liczone w ${unitLabel(unitOfItem(x))}</span>` : ""}${x.aliases?.length ? `<br><span class='small'>${esc(x.aliases.join(", "))}</span>` : ""}</span><span class='row'>${unitBtn}<button class='btn' data-e>Edytuj</button><button class='btn del' data-d>Usuń</button></span>`;
     const ub = li.querySelector("[data-u]");
     if (ub) ub.onclick = () => {
-      const next = unitOfItem(x) === "kg" ? "szt" : "kg";
-      if (confirm(`Liczyć „${x.name}” w ${next === "kg" ? "kilogramach" : "sztukach"}? Zapisane wcześniej trasy się nie zmienią.`))
+      // szt. -> kg -> szt.+kg -> szt.
+      const order = ["szt", "kg", "szt_kg"];
+      const next = order[(order.indexOf(unitOfItem(x)) + 1) % order.length];
+      if (confirm(`Liczyć „${x.name}” w ${unitLabel(next)}? Zapisane wcześniej trasy się nie zmienią.`))
         changeCatalog({ method: "PUT", body: { id: x.id, name: x.name, aliases: x.aliases || [], unit: next } });
     };
     li.querySelector("[data-d]").onclick = () => {
@@ -430,14 +475,10 @@ async function loadGrafik() {
   $("#gClient").value = g.client;
   renderGrafik();
 }
-// asortyment -> {qty, unit}, z rozróżnieniem jednostek
+// asortyment -> { label, unit, qty, kg, days }, z rozróżnieniem jednostek
 function sumItems(rows) {
   const m = new Map();
-  for (const r of rows) {
-    const key = r.item + "\u0000" + r.unit;
-    const cur = m.get(key) || { item: r.item, unit: r.unit, qty: 0, days: new Set() };
-    cur.qty = Math.round((cur.qty + r.qty) * 100) / 100; cur.days.add(dk(r.date)); m.set(key, cur);
-  }
+  for (const r of rows) addTo(m, r.item, r);
   return [...m.values()];
 }
 function renderGrafik() {
@@ -453,7 +494,7 @@ function renderGrafik() {
   for (let d = 1; d <= days; d++) {
     const key = dk(new Date(g.year, g.month, d));
     const items = sumItems(byDay[key] || []);
-    const shown = items.slice(0, 3).map(i => `<span class="it">${esc(i.item)} ${fmtQty(i.qty, i.unit)}</span>`).join("");
+    const shown = items.slice(0, 3).map(i => `<span class="it">${esc(i.label)} ${fmtEntry(i)}</span>`).join("");
     html += `<button class="day${items.length ? " has" : ""}${key === today ? " today" : ""}${key === g.selected ? " sel" : ""}" data-day="${key}">
       <span class="d">${d}</span>${shown}${items.length > 3 ? `<span class="more">+${items.length - 3} więcej</span>` : ""}${items.length ? `<span class="dot">●</span>` : ""}</button>`;
   }
@@ -473,26 +514,26 @@ function renderGDay(byDay) {
   let h = "<table><tr><th>Asortyment</th><th class='n'>Ilość</th></tr>";
   for (const rt of routes.values()) {
     h += `<tr><td colspan=2 class='small'>Trasa ${new Date(rt.date).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })} · ${esc(rt.worker || "—")}</td></tr>`;
-    for (const i of sumItems(rt.rows)) h += `<tr><td>${esc(i.item)}</td><td class='n'>${fmtQty(i.qty, i.unit)}</td></tr>`;
+    for (const i of sumItems(rt.rows)) h += `<tr><td>${esc(i.label)}</td><td class='n'>${fmtEntry(i)}</td></tr>`;
   }
   if (routes.size > 1) {
     h += "<tr><th colspan=2>Razem w dniu</th></tr>";
-    for (const i of sumItems(rows)) h += `<tr><td>${esc(i.item)}</td><td class='n'><b>${fmtQty(i.qty, i.unit)}</b></td></tr>`;
+    for (const i of sumItems(rows)) h += `<tr><td>${esc(i.label)}</td><td class='n'><b>${fmtEntry(i)}</b></td></tr>`;
   }
   $("#gDay").innerHTML = h + "</table>";
 }
 function renderGClientSum(rows) {
   $("#gClientSumTitle").textContent = "Podsumowanie miesiąca" + (g.client ? ": " + g.client : "");
-  const items = sumItems(rows).sort((a, b) => a.item.localeCompare(b.item, "pl"));
+  const items = sumItems(rows).sort((a, b) => a.label.localeCompare(b.label, "pl"));
   if (!items.length) { $("#gClientSum").innerHTML = "<p class='small'>Brak dostaw w tym miesiącu.</p>"; return; }
   const deliveryDays = new Set(rows.map(r => dk(r.date))).size;
   $("#gClientSum").innerHTML = `<p class='small' style='margin:0 0 6px'>Dni z dostawą: <b>${deliveryDays}</b></p><table><tr><th>Asortyment</th><th class='n'>Dni</th><th class='n'>Razem</th></tr>` +
-    items.map(i => `<tr><td>${esc(i.item)}</td><td class='n'>${i.days.size}</td><td class='n'><b>${fmtQty(i.qty, i.unit)}</b></td></tr>`).join("") + "</table>";
+    items.map(i => `<tr><td>${esc(i.label)}</td><td class='n'>${i.days.size}</td><td class='n'><b>${fmtEntry(i)}</b></td></tr>`).join("") + "</table>";
 }
 function allClientRows() {
   const byClient = new Map();
   for (const r of g.rows) { if (!byClient.has(r.client)) byClient.set(r.client, []); byClient.get(r.client).push(r); }
-  return [...byClient.entries()].sort((a, b) => a[0].localeCompare(b[0], "pl")).map(([client, rows]) => ({ client, items: sumItems(rows).sort((a, b) => a.item.localeCompare(b.item, "pl")) }));
+  return [...byClient.entries()].sort((a, b) => a[0].localeCompare(b[0], "pl")).map(([client, rows]) => ({ client, items: sumItems(rows).sort((a, b) => a.label.localeCompare(b.label, "pl")) }));
 }
 function renderGAll() {
   const all = allClientRows();
@@ -500,14 +541,18 @@ function renderGAll() {
   let h = "<table><tr><th>Klient / asortyment</th><th class='n'>Razem</th></tr>";
   for (const c of all) {
     h += `<tr><td colspan=2><b>${esc(c.client)}</b></td></tr>`;
-    for (const i of c.items) h += `<tr><td>&nbsp;&nbsp;${esc(i.item)}</td><td class='n'>${fmtQty(i.qty, i.unit)}</td></tr>`;
+    for (const i of c.items) h += `<tr><td>&nbsp;&nbsp;${esc(i.label)}</td><td class='n'>${fmtEntry(i)}</td></tr>`;
   }
   $("#gAll").innerHTML = h + "</table>";
 }
 $("#gCsv").onclick = () => {
   const q = v => '"' + String(v).replace(/"/g, '""') + '"';
-  const lines = [["Klient", "Asortyment", "Ilość", "Jednostka", "Dni z dostawą"].map(q).join(";")];
-  for (const c of allClientRows()) for (const i of c.items) lines.push([c.client, i.item, String(i.qty).replace(".", ","), i.unit === "kg" ? "kg" : "szt.", i.days.size].map(q).join(";"));
+  const num = v => v === "" ? "" : String(v).replace(".", ",");
+  const lines = [["Klient", "Asortyment", "Sztuki", "Kilogramy", "Dni z dostawą"].map(q).join(";")];
+  for (const c of allClientRows()) for (const i of c.items) {
+    const pcs = i.unit === "kg" ? "" : i.qty, kg = i.unit === "kg" ? i.qty : i.unit === "szt_kg" ? i.kg : "";
+    lines.push([c.client, i.label, num(pcs), num(kg), i.days.size].map(q).join(";"));
+  }
   const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = `pralnia-${g.year}-${String(g.month + 1).padStart(2, "0")}.csv`;
