@@ -467,11 +467,12 @@ async function loadGrafik() {
   catch (e) { $("#gNote").textContent = "Nie można pobrać grafiku: " + e.message; g.rows = []; }
   const names = new Set([...cat().clients.map(c => c.name), ...g.rows.map(r => r.client)]);
   const list = [...names].sort((a, b) => a.localeCompare(b, "pl"));
-  if (!g.client || !names.has(g.client)) g.client = list.find(n => g.rows.some(r => r.client === n)) || list[0] || "";
-  $("#gClient").innerHTML = list.length ? list.map(n => {
+  // "*" = wszyscy klienci razem
+  if (!g.client || (g.client !== "*" && !names.has(g.client))) g.client = list.find(n => g.rows.some(r => r.client === n)) || list[0] || "*";
+  $("#gClient").innerHTML = `<option value="*">— Wszyscy klienci —</option>` + list.map(n => {
     const has = g.rows.some(r => r.client === n);
     return `<option value="${esc(n)}">${esc(n)}${has ? "" : " (brak dostaw w tym miesiącu)"}</option>`;
-  }).join("") : `<option value="">Brak klientów</option>`;
+  }).join("");
   $("#gClient").value = g.client;
   renderGrafik();
 }
@@ -483,7 +484,7 @@ function sumItems(rows) {
 }
 function renderGrafik() {
   $("#gMonth").textContent = new Date(g.year, g.month, 1).toLocaleDateString("pl-PL", { month: "long", year: "numeric" });
-  const rows = g.rows.filter(r => r.client === g.client);
+  const rows = g.client === "*" ? g.rows : g.rows.filter(r => r.client === g.client);
   const byDay = {};
   for (const r of rows) (byDay[dk(r.date)] ||= []).push(r);
   const lead = (new Date(g.year, g.month, 1).getDay() + 6) % 7;
@@ -499,15 +500,33 @@ function renderGrafik() {
       <span class="d">${d}</span>${shown}${items.length > 3 ? `<span class="more">+${items.length - 3} więcej</span>` : ""}${items.length ? `<span class="dot">●</span>` : ""}</button>`;
   }
   $("#gCal").innerHTML = html;
-  $("#gCal").querySelectorAll("[data-day]").forEach(b => b.onclick = () => { g.selected = b.dataset.day; renderGrafik(); });
-  renderGDay(byDay); renderGClientSum(rows); renderGAll();
+  $("#gCal").querySelectorAll("[data-day]").forEach(b => b.onclick = () => {
+    g.selected = b.dataset.day;
+    $("#gCal").querySelectorAll(".day.sel").forEach(x => x.classList.remove("sel")); b.classList.add("sel");
+    renderGDay(byDay); openDay();
+  });
+  g.byDay = byDay;
+  renderGClientSum(rows); renderGAll();
 }
 function renderGDay(byDay) {
   const [y, m, d] = g.selected.split("-").map(Number);
   const inMonth = y === g.year && m - 1 === g.month;
-  $("#gDayTitle").textContent = (g.client ? g.client + " · " : "") + new Date(y, m - 1, d).toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" });
+  $("#gDayTitle").textContent = (g.client === "*" ? "Wszyscy klienci" : g.client) + " · " + new Date(y, m - 1, d).toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" });
   const rows = inMonth ? (byDay[g.selected] || []) : [];
-  if (!rows.length) { $("#gDay").innerHTML = "<p class='small'>Tego dnia nic nie zawieziono do tego klienta.</p>"; return; }
+  if (!rows.length) { $("#gDay").innerHTML = "<p class='small'>Tego dnia nic nie zawieziono" + (g.client === "*" ? "." : " do tego klienta.") + "</p>"; return; }
+  if (g.client === "*") {
+    // wszyscy klienci: każdy klient osobno, potem suma dnia
+    const byClient = new Map();
+    for (const r of rows) { if (!byClient.has(r.client)) byClient.set(r.client, []); byClient.get(r.client).push(r); }
+    let h = "<table><tr><th>Klient / asortyment</th><th class='n'>Ilość</th></tr>";
+    for (const [c, list] of [...byClient.entries()].sort((a, b) => a[0].localeCompare(b[0], "pl"))) {
+      h += `<tr><td colspan=2><b>${esc(c)}</b></td></tr>`;
+      for (const i of sumItems(list)) h += `<tr><td>&nbsp;&nbsp;${esc(i.label)}</td><td class='n'>${fmtEntry(i)}</td></tr>`;
+    }
+    h += "<tr><th colspan=2>Razem w dniu</th></tr>";
+    for (const i of sumItems(rows).sort((a, b) => a.label.localeCompare(b.label, "pl"))) h += `<tr><td>${esc(i.label)}</td><td class='n'><b>${fmtEntry(i)}</b></td></tr>`;
+    $("#gDay").innerHTML = h + "</table>"; return;
+  }
   // kolejne trasy tego dnia osobno (godzina i pracownik), potem suma dnia
   const routes = new Map();
   for (const r of rows) { if (!routes.has(r.routeId)) routes.set(r.routeId, { date: r.date, worker: r.worker, rows: [] }); routes.get(r.routeId).rows.push(r); }
@@ -523,7 +542,7 @@ function renderGDay(byDay) {
   $("#gDay").innerHTML = h + "</table>";
 }
 function renderGClientSum(rows) {
-  $("#gClientSumTitle").textContent = "Podsumowanie miesiąca" + (g.client ? ": " + g.client : "");
+  $("#gClientSumTitle").textContent = "Razem w miesiącu" + (g.client === "*" ? " – wszyscy klienci" : ": " + g.client);
   const items = sumItems(rows).sort((a, b) => a.label.localeCompare(b.label, "pl"));
   if (!items.length) { $("#gClientSum").innerHTML = "<p class='small'>Brak dostaw w tym miesiącu.</p>"; return; }
   const deliveryDays = new Set(rows.map(r => dk(r.date))).size;
@@ -559,6 +578,13 @@ $("#gCsv").onclick = () => {
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 $("#gClient").onchange = e => { g.client = e.target.value; renderGrafik(); };
+function openDay() {
+  const dlg = $("#gDialog");
+  if (dlg.showModal) { if (!dlg.open) dlg.showModal(); } else dlg.setAttribute("open", "");
+}
+$("#gDialogClose").onclick = () => { const dlg = $("#gDialog"); dlg.close ? dlg.close() : dlg.removeAttribute("open"); };
+// kliknięcie w tło zamyka okno
+$("#gDialog").addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 $("#gPrev").onclick = () => { g.month--; if (g.month < 0) { g.month = 11; g.year--; } g.selected = dk(new Date(g.year, g.month, 1)); loadGrafik(); };
 $("#gNext").onclick = () => { g.month++; if (g.month > 11) { g.month = 0; g.year++; } g.selected = dk(new Date(g.year, g.month, 1)); loadGrafik(); };
 showAdmin();
