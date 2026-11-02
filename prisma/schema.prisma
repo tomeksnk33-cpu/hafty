@@ -226,7 +226,28 @@ model LaundryCatalogEntry {
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
+  clientPrices LaundryPrice[] @relation("CenaKlienta")
+  itemPrices   LaundryPrice[] @relation("CenaAsortymentu")
+
   @@index([kind, name])
+}
+
+/// Cena prania jednej pozycji asortymentu u jednego klienta (zł netto). Dla
+/// asortymentu liczonego w sztukach i kilogramach można podać obie ceny.
+model LaundryPrice {
+  clientId  String
+  itemId    String
+  /// zł za sztukę
+  perPiece  Float?
+  /// zł za kilogram
+  perKg     Float?
+  updatedAt DateTime @updatedAt
+
+  client LaundryCatalogEntry @relation("CenaKlienta", fields: [clientId], references: [id], onDelete: Cascade)
+  item   LaundryCatalogEntry @relation("CenaAsortymentu", fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([clientId, itemId])
+  @@index([itemId])
 }
 
 /// Zakończona trasa. `id` nadaje telefon, dzięki czemu ponowna wysyłka po

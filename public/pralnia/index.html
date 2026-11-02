@@ -87,6 +87,7 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
   <button data-tab="trasa" class="on">Trasa</button>
   <button data-tab="klienci" class="adminOnly" style="display:none">Klienci</button>
   <button data-tab="asort" class="adminOnly" style="display:none">Asortyment</button>
+  <button data-tab="cennik" class="adminOnly" style="display:none">Cennik</button>
   <button data-tab="grafik" id="navGrafik" style="display:none">Grafik</button>
   <button data-tab="ust">Ustawienia</button>
 </nav>
@@ -147,6 +148,18 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
     <div class="row" style="margin-top:10px"><button class="btn pri" id="aAdd">Dodaj</button></div>
   </div>
   <div class="card"><h2>Asortyment (<span id="aCount">0</span>)</h2><ul class="list" id="aList"></ul></div>
+</section>
+
+<!-- CENNIK (administrator) -->
+<section id="cennik">
+  <div class="card">
+    <h2>Cennik prania</h2>
+    <label for="pClient" style="margin-top:0">Klient</label>
+    <div class="row"><select id="pClient" style="flex:1"></select><select id="pCopyFrom"></select></div>
+    <p class="small">Ceny w zł za sztukę albo za kilogram, osobno dla każdego klienta. Zapisuje się po wyjściu z pola. Puste pole oznacza brak ceny.</p>
+    <div id="pList" class="scroll"></div>
+    <p class="small" id="pNote" style="margin:8px 0 0"></p>
+  </div>
 </section>
 
 <!-- GRAFIK (administrator) -->
