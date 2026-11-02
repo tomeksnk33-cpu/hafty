@@ -178,13 +178,20 @@ export async function POST(request: Request) {
   );
 }
 
+const DELETE_PASSWORD = "aaa";
+
 /** Usunięcie całej trasy (np. testowej) razem z jej wpisami. Tylko administrator. */
 export async function DELETE(request: Request) {
   const { denied } = await laundryUser({ admin: true });
   if (denied) return denied;
 
-  const id = new URL(request.url).searchParams.get("id");
+  const params = new URL(request.url).searchParams;
+  const id = params.get("id");
   if (!id) return NextResponse.json({ error: "Brak id trasy." }, { status: 400 });
+  // Stałe hasło chroni przed przypadkowym kliknięciem (to nie zabezpieczenie konta).
+  if (request.headers.get("x-haslo-usuniecia") !== DELETE_PASSWORD) {
+    return NextResponse.json({ error: "Złe hasło. Trasa nie została usunięta." }, { status: 403 });
+  }
 
   const { count } = await prisma.laundryRoute.deleteMany({ where: { id } });
   if (count === 0) return NextResponse.json({ error: "Tej trasy już nie ma." }, { status: 404 });

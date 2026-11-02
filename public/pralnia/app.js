@@ -369,8 +369,9 @@ async function finishRoute(spoken) {
 }
 // usunięcie całej trasy (np. testowej) — tylko administrator
 async function deleteRoute(id, label) {
-  if (!confirm(`Usunąć całą trasę ${label}? Tego nie da się cofnąć.`)) return false;
-  try { await api("trasy?id=" + encodeURIComponent(id), { method: "DELETE" }); }
+  const pass = prompt(`Usunąć całą trasę ${label}? Tego nie da się cofnąć.\nPodaj hasło usuwania:`);
+  if (pass === null) return false;
+  try { await api("trasy?id=" + encodeURIComponent(id), { method: "DELETE", headers: { "X-Haslo-Usuniecia": pass.trim() } }); }
   catch (e) { alert("Nie usunięto: " + e.message); return false; }
   loadHistory();
   if (document.querySelector("#grafik.on")) loadGrafik();
