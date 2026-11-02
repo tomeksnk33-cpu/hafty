@@ -33,7 +33,7 @@ export async function GET(request: Request) {
       workerName: true,
       entries: {
         orderBy: { position: "asc" },
-        select: { clientName: true, itemName: true, quantity: true, unit: true },
+        select: { clientName: true, itemName: true, quantity: true, unit: true, weightKg: true },
       },
     },
   });
@@ -47,7 +47,8 @@ export async function GET(request: Request) {
         client: e.clientName,
         item: e.itemName,
         qty: e.quantity,
-        unit: e.unit === "KG" ? "kg" : "szt",
+        unit: e.unit === "KG" ? "kg" : e.unit === "SZT_KG" ? "szt_kg" : "szt",
+        ...(e.unit === "SZT_KG" ? { kg: e.weightKg ?? 0 } : {}),
       })),
     ),
   );

@@ -22,11 +22,12 @@ const entrySchema = z.object({
       [...new Set(list.map((a) => a.trim().slice(0, 120)).filter(Boolean))].slice(0, 30),
     ),
   /** Tylko asortyment: „szt” albo „kg”. */
-  unit: z.enum(["szt", "kg"]).optional(),
+  unit: z.enum(["szt", "kg", "szt_kg"]).optional(),
 });
 
-const UNIT = { szt: LaundryUnit.SZT, kg: LaundryUnit.KG } as const;
-const unitOut = (unit: LaundryUnit) => (unit === LaundryUnit.KG ? "kg" : "szt");
+const UNIT = { szt: LaundryUnit.SZT, kg: LaundryUnit.KG, szt_kg: LaundryUnit.SZT_KG } as const;
+const unitOut = (unit: LaundryUnit) =>
+  unit === LaundryUnit.KG ? "kg" : unit === LaundryUnit.SZT_KG ? "szt_kg" : "szt";
 
 const createSchema = entrySchema.extend({ kind: kindSchema });
 const updateSchema = entrySchema.extend({ id: z.string().min(1) });

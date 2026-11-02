@@ -29,7 +29,9 @@ const routeSchema = z.object({
         client: z.string().trim().min(1).max(120),
         item: z.string().trim().min(1).max(120),
         qty: z.number().finite().positive().max(100_000),
-        unit: z.enum(["szt", "kg"]).optional(),
+        unit: z.enum(["szt", "kg", "szt_kg"]).optional(),
+        /** Waga dla asortymentu liczonego w sztukach i kilogramach. */
+        kg: z.number().finite().nonnegative().max(100_000).optional(),
       }),
     )
     .max(2000)
@@ -49,7 +51,7 @@ export async function GET() {
       workerName: true,
       finishedAt: true,
       mailedAt: true,
-      entries: { select: { clientName: true, quantity: true, unit: true } },
+      entries: { select: { clientName: true, quantity: true, unit: true, weightKg: true } },
     },
   });
 
@@ -60,8 +62,11 @@ export async function GET() {
       date: r.finishedAt,
       mailedAt: r.mailedAt,
       count: r.entries.length,
-      total: r.entries.filter((e) => e.unit === LaundryUnit.SZT).reduce((sum, e) => sum + e.quantity, 0),
-      totalKg: Math.round(r.entries.filter((e) => e.unit === LaundryUnit.KG).reduce((sum, e) => sum + e.quantity, 0) * 100) / 100,
+      total: r.entries.filter((e) => e.unit !== LaundryUnit.KG).reduce((sum, e) => sum + e.quantity, 0),
+      totalKg:
+        Math.round(
+          r.entries.reduce((sum, e) => sum + (e.unit === LaundryUnit.KG ? e.quantity : (e.weightKg ?? 0)), 0) * 100,
+        ) / 100,
       clients: new Set(r.entries.map((e) => e.clientName)).size,
     })),
   );
@@ -105,7 +110,8 @@ export async function POST(request: Request) {
       ).map((i) => [i.name.toLowerCase(), i.unit]),
     );
     const unitOf = (line: (typeof lines)[number]) =>
-      catalogUnits.get(line.item.toLowerCase()) ?? (line.unit === "kg" ? LaundryUnit.KG : LaundryUnit.SZT);
+      catalogUnits.get(line.item.toLowerCase()) ??
+      (line.unit === "kg" ? LaundryUnit.KG : line.unit === "szt_kg" ? LaundryUnit.SZT_KG : LaundryUnit.SZT);
 
     try {
       saved = await prisma.laundryRoute.create({
@@ -117,14 +123,20 @@ export async function POST(request: Request) {
           finishedAt: date ? new Date(date) : new Date(),
           entries: {
             create: lines.map((line, position) => {
-              const unit = unitOf(line);
+              let unit = unitOf(line);
+              // pozycję przestawiono na „szt. i kg” w trakcie trasy, a telefon podał tylko jedną liczbę
+              if (unit === LaundryUnit.SZT_KG && line.kg === undefined) {
+                unit = line.unit === "kg" ? LaundryUnit.KG : LaundryUnit.SZT;
+              }
+              const kgOnly = unit === LaundryUnit.KG;
               return {
                 position,
                 clientName: line.client,
                 itemName: line.item,
                 unit,
                 // kilogramy z dokładnością do 0,01, sztuki w całości
-                quantity: unit === LaundryUnit.KG ? Math.round(line.qty * 100) / 100 : Math.round(line.qty),
+                quantity: kgOnly ? Math.round(line.qty * 100) / 100 : Math.round(line.qty),
+                weightKg: unit === LaundryUnit.SZT_KG ? Math.round((line.kg ?? 0) * 100) / 100 : null,
               };
             }),
           },
