@@ -177,3 +177,17 @@ export async function POST(request: Request) {
     { status: mailError ? 502 : 200 },
   );
 }
+
+/** Usunięcie całej trasy (np. testowej) razem z jej wpisami. Tylko administrator. */
+export async function DELETE(request: Request) {
+  const { denied } = await laundryUser({ admin: true });
+  if (denied) return denied;
+
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "Brak id trasy." }, { status: 400 });
+
+  const { count } = await prisma.laundryRoute.deleteMany({ where: { id } });
+  if (count === 0) return NextResponse.json({ error: "Tej trasy już nie ma." }, { status: 404 });
+
+  return NextResponse.json({ deleted: true });
+}
