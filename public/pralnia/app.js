@@ -515,17 +515,8 @@ function renderGDay(byDay) {
   const rows = inMonth ? (byDay[g.selected] || []) : [];
   if (!rows.length) { $("#gDay").innerHTML = "<p class='small'>Tego dnia nic nie zawieziono" + (g.client === "*" ? "." : " do tego klienta.") + "</p>"; return; }
   if (g.client === "*") {
-    // wszyscy klienci: każdy klient osobno, potem suma dnia
-    const byClient = new Map();
-    for (const r of rows) { if (!byClient.has(r.client)) byClient.set(r.client, []); byClient.get(r.client).push(r); }
-    let h = "<table><tr><th>Klient / asortyment</th><th class='n'>Ilość</th></tr>";
-    for (const [c, list] of [...byClient.entries()].sort((a, b) => a[0].localeCompare(b[0], "pl"))) {
-      h += `<tr><td colspan=2><b>${esc(c)}</b></td></tr>`;
-      for (const i of sumItems(list)) h += `<tr><td>&nbsp;&nbsp;${esc(i.label)}</td><td class='n'>${fmtEntry(i)}</td></tr>`;
-    }
-    h += "<tr><th colspan=2>Razem w dniu</th></tr>";
-    for (const i of sumItems(rows).sort((a, b) => a.label.localeCompare(b.label, "pl"))) h += `<tr><td>${esc(i.label)}</td><td class='n'><b>${fmtEntry(i)}</b></td></tr>`;
-    $("#gDay").innerHTML = h + "</table>"; return;
+    // wszyscy klienci: według asortymentu, pod spodem klienci
+    $("#gDay").innerHTML = itemTable(rows, "Asortyment / klient"); return;
   }
   // kolejne trasy tego dnia osobno (godzina i pracownik), potem suma dnia
   const routes = new Map();
@@ -549,28 +540,44 @@ function renderGClientSum(rows) {
   $("#gClientSum").innerHTML = `<p class='small' style='margin:0 0 6px'>Dni z dostawą: <b>${deliveryDays}</b></p><table><tr><th>Asortyment</th><th class='n'>Dni</th><th class='n'>Razem</th></tr>` +
     items.map(i => `<tr><td>${esc(i.label)}</td><td class='n'>${i.days.size}</td><td class='n'><b>${fmtEntry(i)}</b></td></tr>`).join("") + "</table>";
 }
-function allClientRows() {
-  const byClient = new Map();
-  for (const r of g.rows) { if (!byClient.has(r.client)) byClient.set(r.client, []); byClient.get(r.client).push(r); }
-  return [...byClient.entries()].sort((a, b) => a[0].localeCompare(b[0], "pl")).map(([client, rows]) => ({ client, items: sumItems(rows).sort((a, b) => a.label.localeCompare(b.label, "pl")) }));
+// asortyment -> razem + rozbicie na klientów (posortowane po nazwie)
+function itemRows(rows) {
+  const byItem = new Map();
+  for (const r of rows) { if (!byItem.has(r.item)) byItem.set(r.item, []); byItem.get(r.item).push(r); }
+  return [...byItem.entries()].sort((a, b) => a[0].localeCompare(b[0], "pl")).map(([item, list]) => {
+    const byClient = new Map();
+    for (const r of list) { if (!byClient.has(r.client)) byClient.set(r.client, []); byClient.get(r.client).push(r); }
+    return {
+      item, total: sumItems(list),
+      clients: [...byClient.entries()].sort((a, b) => a[0].localeCompare(b[0], "pl")).map(([client, cr]) => ({ client, entries: sumItems(cr) })),
+    };
+  });
+}
+const fmtAll = list => list.map(fmtEntry).join(" + ");
+// tabela: asortyment (pogrubiona suma), pod spodem klienci
+function itemTable(rows, head) {
+  let h = `<table><tr><th>${head}</th><th class='n'>Razem</th></tr>`;
+  for (const it of itemRows(rows)) {
+    h += `<tr><td><b>${esc(it.item)}</b></td><td class='n'><b>${fmtAll(it.total)}</b></td></tr>`;
+    for (const c of it.clients) h += `<tr><td class='small'>&nbsp;&nbsp;${esc(c.client)}</td><td class='n small'>${fmtAll(c.entries)}</td></tr>`;
+  }
+  return h + "</table>";
 }
 function renderGAll() {
-  const all = allClientRows();
-  if (!all.length) { $("#gAll").innerHTML = "<p class='small'>Brak tras w tym miesiącu.</p>"; return; }
-  let h = "<table><tr><th>Klient / asortyment</th><th class='n'>Razem</th></tr>";
-  for (const c of all) {
-    h += `<tr><td colspan=2><b>${esc(c.client)}</b></td></tr>`;
-    for (const i of c.items) h += `<tr><td>&nbsp;&nbsp;${esc(i.label)}</td><td class='n'>${fmtEntry(i)}</td></tr>`;
-  }
-  $("#gAll").innerHTML = h + "</table>";
+  if (!g.rows.length) { $("#gAll").innerHTML = "<p class='small'>Brak tras w tym miesiącu.</p>"; return; }
+  $("#gAll").innerHTML = itemTable(g.rows, "Asortyment / klient");
 }
 $("#gCsv").onclick = () => {
   const q = v => '"' + String(v).replace(/"/g, '""') + '"';
   const num = v => v === "" ? "" : String(v).replace(".", ",");
-  const lines = [["Klient", "Asortyment", "Sztuki", "Kilogramy", "Dni z dostawą"].map(q).join(";")];
-  for (const c of allClientRows()) for (const i of c.items) {
+  const lines = [["Asortyment", "Klient", "Sztuki", "Kilogramy", "Dni z dostawą"].map(q).join(";")];
+  const row = (item, client, i) => {
     const pcs = i.unit === "kg" ? "" : i.qty, kg = i.unit === "kg" ? i.qty : i.unit === "szt_kg" ? i.kg : "";
-    lines.push([c.client, i.label, num(pcs), num(kg), i.days.size].map(q).join(";"));
+    lines.push([item, client, num(pcs), num(kg), i.days.size].map(q).join(";"));
+  };
+  for (const it of itemRows(g.rows)) {
+    for (const c of it.clients) for (const i of c.entries) row(it.item, c.client, i);
+    for (const i of it.total) row(it.item, "RAZEM", i);
   }
   const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
