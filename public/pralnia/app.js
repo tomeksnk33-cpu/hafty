@@ -285,6 +285,7 @@ function addTo(map, label, r) {
   const unit = r.unit || "szt", key = label + "\u0000" + unit;
   const cur = map.get(key) || { label, unit, qty: 0, kg: 0, days: new Set() };
   cur.qty = r2(cur.qty + r.qty); cur.kg = r2(cur.kg + (r.kg || 0));
+  if ("val" in r) { cur.val = r2((cur.val || 0) + (r.val ?? 0)); if (r.val == null) cur.miss = true; }
   if (r.date) cur.days.add(dk(r.date));
   map.set(key, cur);
 }
@@ -405,6 +406,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("section").forEach(s => s.classList.toggle("on", s.id === b.dataset.tab));
   if (b.dataset.tab === "klienci" || b.dataset.tab === "asort") loadCatalog();
   if (b.dataset.tab === "grafik") loadGrafik();
+  if (b.dataset.tab === "cennik") loadCennik();
 });
 
 // shared catalog lists
@@ -465,6 +467,8 @@ async function loadGrafik() {
   const from = new Date(g.year, g.month, 1), to = new Date(g.year, g.month + 1, 1);
   try { g.rows = await api(`grafik?od=${from.toISOString()}&do=${to.toISOString()}`); }
   catch (e) { $("#gNote").textContent = "Nie można pobrać grafiku: " + e.message; g.rows = []; }
+  try { setPrices(await api("cennik")); } catch (e) { setPrices([]); }
+  for (const r of g.rows) r.val = rowValue(r);
   const names = new Set([...cat().clients.map(c => c.name), ...g.rows.map(r => r.client)]);
   const list = [...names].sort((a, b) => a.localeCompare(b, "pl"));
   // "*" = wszyscy klienci razem
@@ -537,8 +541,10 @@ function renderGClientSum(rows) {
   const items = sumItems(rows).sort((a, b) => a.label.localeCompare(b.label, "pl"));
   if (!items.length) { $("#gClientSum").innerHTML = "<p class='small'>Brak dostaw w tym miesiącu.</p>"; return; }
   const deliveryDays = new Set(rows.map(r => dk(r.date))).size;
-  $("#gClientSum").innerHTML = `<p class='small' style='margin:0 0 6px'>Dni z dostawą: <b>${deliveryDays}</b></p><table><tr><th>Asortyment</th><th class='n'>Dni</th><th class='n'>Razem</th></tr>` +
-    items.map(i => `<tr><td>${esc(i.label)}</td><td class='n'>${i.days.size}</td><td class='n'><b>${fmtEntry(i)}</b></td></tr>`).join("") + "</table>";
+  const total = valueSum(rows);
+  $("#gClientSum").innerHTML = `<p class='small' style='margin:0 0 6px'>Dni z dostawą: <b>${deliveryDays}</b></p><table><tr><th>Asortyment</th><th class='n'>Dni</th><th class='n'>Razem</th><th class='n'>Wartość</th></tr>` +
+    items.map(i => `<tr><td>${esc(i.label)}</td><td class='n'>${i.days.size}</td><td class='n'><b>${fmtEntry(i)}</b></td><td class='n'>${fmtVal(i)}</td></tr>`).join("") +
+    `<tr><th colspan=3>Do zapłaty w miesiącu</th><th class='n'>${fmtVal(total)}</th></tr></table>` + missNote(total);
 }
 // asortyment -> razem + rozbicie na klientów (posortowane po nazwie)
 function itemRows(rows) {
@@ -554,26 +560,38 @@ function itemRows(rows) {
   });
 }
 const fmtAll = list => list.map(fmtEntry).join(" + ");
+const sumVal = list => ({ val: r2(list.reduce((a, i) => a + (i.val || 0), 0)), miss: list.some(i => i.miss) });
 // tabela: asortyment (pogrubiona suma), pod spodem klienci
 function itemTable(rows, head) {
-  let h = `<table><tr><th>${head}</th><th class='n'>Razem</th></tr>`;
+  let h = `<table><tr><th>${head}</th><th class='n'>Razem</th><th class='n'>Wartość</th></tr>`;
   for (const it of itemRows(rows)) {
-    h += `<tr><td><b>${esc(it.item)}</b></td><td class='n'><b>${fmtAll(it.total)}</b></td></tr>`;
-    for (const c of it.clients) h += `<tr><td class='small'>&nbsp;&nbsp;${esc(c.client)}</td><td class='n small'>${fmtAll(c.entries)}</td></tr>`;
+    h += `<tr><td><b>${esc(it.item)}</b></td><td class='n'><b>${fmtAll(it.total)}</b></td><td class='n'><b>${fmtVal(sumVal(it.total))}</b></td></tr>`;
+    for (const c of it.clients) h += `<tr><td class='small'>&nbsp;&nbsp;${esc(c.client)}</td><td class='n small'>${fmtAll(c.entries)}</td><td class='n small'>${fmtVal(sumVal(c.entries))}</td></tr>`;
   }
-  return h + "</table>";
+  const total = valueSum(rows);
+  return h + `<tr><th colspan=2>Razem wartość</th><th class='n'>${fmtVal(total)}</th></tr></table>` + missNote(total);
 }
 function renderGAll() {
   if (!g.rows.length) { $("#gAll").innerHTML = "<p class='small'>Brak tras w tym miesiącu.</p>"; return; }
-  $("#gAll").innerHTML = itemTable(g.rows, "Asortyment / klient");
+  // wartość prania każdego klienta w miesiącu (do faktury)
+  const byClient = new Map();
+  for (const r of g.rows) { if (!byClient.has(r.client)) byClient.set(r.client, []); byClient.get(r.client).push(r); }
+  let h = "<h2 style='margin-top:18px'>Do zapłaty według klientów</h2><table><tr><th>Klient</th><th class='n'>Wartość</th></tr>";
+  for (const [c, list] of [...byClient.entries()].sort((a, b) => a[0].localeCompare(b[0], "pl"))) {
+    const v = valueSum(list);
+    h += `<tr><td>${esc(c)}${v.miss ? " <span class='warn small'>(brak części cen)</span>" : ""}</td><td class='n'><b>${fmtVal(v)}</b></td></tr>`;
+  }
+  $("#gAll").innerHTML = itemTable(g.rows, "Asortyment / klient") + h + "</table>";
 }
 $("#gCsv").onclick = () => {
   const q = v => '"' + String(v).replace(/"/g, '""') + '"';
   const num = v => v === "" ? "" : String(v).replace(".", ",");
-  const lines = [["Asortyment", "Klient", "Sztuki", "Kilogramy", "Dni z dostawą"].map(q).join(";")];
+  const lines = [["Asortyment", "Klient", "Sztuki", "Kilogramy", "Dni z dostawą", "Cena zł/szt", "Cena zł/kg", "Wartość zł"].map(q).join(";")];
   const row = (item, client, i) => {
     const pcs = i.unit === "kg" ? "" : i.qty, kg = i.unit === "kg" ? i.qty : i.unit === "szt_kg" ? i.kg : "";
-    lines.push([item, client, num(pcs), num(kg), i.days.size].map(q).join(";"));
+    const p = client === "RAZEM" ? {} : priceOf(client, item);
+    const cell = v => v == null ? "" : num(v);
+    lines.push([item, client, num(pcs), num(kg), i.days.size, cell(i.unit !== "kg" ? p.szt : null), cell(i.unit !== "szt" ? p.kg : null), i.miss ? "" : num(i.val ?? "")].map(q).join(";"));
   };
   for (const it of itemRows(g.rows)) {
     for (const c of it.clients) for (const i of c.entries) row(it.item, c.client, i);
@@ -592,6 +610,79 @@ function openDay() {
 $("#gDialogClose").onclick = () => { const dlg = $("#gDialog"); dlg.close ? dlg.close() : dlg.removeAttribute("open"); };
 // kliknięcie w tło zamyka okno
 $("#gDialog").addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+// ---------- cennik (administrator) ----------
+// cena = klient + asortyment -> { szt: zł/szt, kg: zł/kg }; liczone według aktualnych cen
+let prices = new Map(), priceList = [];
+const pk = (client, item) => client + "\u0000" + item;
+function setPrices(list) { priceList = list || []; prices = new Map(priceList.map(p => [pk(p.client, p.item), p])); }
+const priceOf = (client, item) => prices.get(pk(client, item)) || {};
+// wartość jednego wiersza trasy albo null, gdy brak potrzebnej ceny
+function rowValue(r) {
+  const p = priceOf(r.client, r.item);
+  if (r.unit === "kg") return p.kg == null ? null : r2(r.qty * p.kg);
+  if (r.unit === "szt_kg") {
+    if (p.szt == null && p.kg == null) return null;
+    return r2(r.qty * (p.szt || 0) + (r.kg || 0) * (p.kg || 0));
+  }
+  return p.szt == null ? null : r2(r.qty * p.szt);
+}
+const valueSum = rows => ({ val: r2(rows.reduce((a, r) => a + (r.val ?? 0), 0)), miss: rows.some(r => r.val == null) });
+const zl = v => v.toLocaleString("pl-PL", { style: "currency", currency: "PLN" });
+const fmtVal = x => x.miss && !x.val ? "<span class='warn'>brak ceny</span>" : zl(x.val || 0) + (x.miss ? " <span class='warn'>*</span>" : "");
+const missNote = t => t.miss ? "<p class='small warn' style='margin:6px 0 0'>* Części asortymentu nie ma w cenniku, więc nie jest wliczona. Uzupełnij ją w zakładce Cennik.</p>" : "";
+
+const pc = { client: "" };
+async function loadCennik() {
+  await loadCatalog();
+  try { setPrices(await api("cennik")); }
+  catch (e) { $("#pNote").textContent = "Nie można pobrać cennika: " + e.message; }
+  const clients = [...cat().clients].sort((a, b) => a.name.localeCompare(b.name, "pl"));
+  if (!clients.some(c => c.id === pc.client)) pc.client = clients[0]?.id || "";
+  const opts = clients.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
+  $("#pClient").innerHTML = opts || "<option value=''>— najpierw dodaj klientów —</option>";
+  $("#pClient").value = pc.client;
+  $("#pCopyFrom").innerHTML = "<option value=''>Skopiuj ceny od klienta…</option>" + clients.filter(c => c.id !== pc.client).map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
+  renderCennik();
+}
+function renderCennik() {
+  const items = [...cat().items].sort((a, b) => a.name.localeCompare(b.name, "pl"));
+  if (!pc.client || !items.length) { $("#pList").innerHTML = "<p class='small'>Dodaj klientów i asortyment, żeby ustalić ceny.</p>"; return; }
+  const byId = new Map(priceList.filter(p => p.clientId === pc.client).map(p => [p.itemId, p]));
+  const inp = (it, f, v) => `<input type="text" inputmode="decimal" data-item="${esc(it.id)}" data-f="${f}" value="${v == null ? "" : String(v).replace(".", ",")}" placeholder="—" style="width:96px;text-align:right">`;
+  let h = "<table><tr><th>Asortyment</th><th class='n'>zł / szt.</th><th class='n'>zł / kg</th></tr>";
+  for (const it of items) {
+    const u = unitOfItem(it), p = byId.get(it.id) || {};
+    h += `<tr><td>${esc(it.name)} <span class='small'>· ${unitShort(u)}</span></td>` +
+      `<td class='n'>${u !== "kg" ? inp(it, "szt", p.szt) : ""}</td><td class='n'>${u !== "szt" ? inp(it, "kg", p.kg) : ""}</td></tr>`;
+  }
+  $("#pList").innerHTML = h + "</table>";
+  $("#pList").querySelectorAll("input").forEach(el => el.onchange = () => savePrice(el.dataset.item));
+}
+const parsePrice = v => { v = v.trim().replace(/\s|zł/g, "").replace(",", "."); if (!v) return null; const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : NaN; };
+async function savePrice(itemId) {
+  const get = f => { const el = $("#pList").querySelector(`input[data-item="${CSS.escape(itemId)}"][data-f="${f}"]`); return el ? parsePrice(el.value) : null; };
+  const body = { clientId: pc.client, itemId, szt: get("szt"), kg: get("kg") };
+  if (Number.isNaN(body.szt) || Number.isNaN(body.kg)) { $("#pNote").textContent = "Wpisz cenę jako liczbę, np. 3,50."; return; }
+  try {
+    await api("cennik", { method: "PUT", body });
+    setPrices([...priceList.filter(p => !(p.clientId === pc.client && p.itemId === itemId)),
+      ...(body.szt == null && body.kg == null ? [] : [{ ...body, client: cat().clients.find(c => c.id === pc.client)?.name, item: cat().items.find(i => i.id === itemId)?.name }])]);
+    $("#pNote").textContent = "Zapisano.";
+  } catch (e) { $("#pNote").textContent = "Nie zapisano: " + e.message; }
+}
+$("#pClient").onchange = e => { pc.client = e.target.value; loadCennik(); };
+$("#pCopyFrom").onchange = async e => {
+  const from = e.target.value; e.target.value = ""; if (!from) return;
+  const src = priceList.filter(p => p.clientId === from);
+  const fromName = cat().clients.find(c => c.id === from)?.name;
+  if (!src.length) { $("#pNote").textContent = `„${fromName}” nie ma jeszcze cen.`; return; }
+  if (!confirm(`Skopiować ${src.length} cen od „${fromName}”? Ceny tego klienta dla tych pozycji zostaną zastąpione.`)) return;
+  let ok = 0;
+  for (const p of src) { try { await api("cennik", { method: "PUT", body: { clientId: pc.client, itemId: p.itemId, szt: p.szt, kg: p.kg } }); ok++; } catch (err) {} }
+  $("#pNote").textContent = `Skopiowano ${ok} z ${src.length} cen.`;
+  loadCennik();
+};
+
 $("#gPrev").onclick = () => { g.month--; if (g.month < 0) { g.month = 11; g.year--; } g.selected = dk(new Date(g.year, g.month, 1)); loadGrafik(); };
 $("#gNext").onclick = () => { g.month++; if (g.month > 11) { g.month = 0; g.year++; } g.selected = dk(new Date(g.year, g.month, 1)); loadGrafik(); };
 showAdmin();
