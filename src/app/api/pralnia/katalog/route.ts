@@ -4,6 +4,7 @@ import { z } from "zod";
 import { LaundryCatalogKind, LaundryUnit } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { laundryUser } from "@/lib/pralnia/access";
+import { locationOut } from "@/lib/pralnia/location";
 
 // Wspólna lista klientów i asortymentu pralni. Czytać ją musi każdy pracownik
 // pralni (rozpoznawanie mowy), zmieniać tylko administrator. Każda zmiana
@@ -50,14 +51,25 @@ export async function GET() {
 
   const rows = await prisma.laundryCatalogEntry.findMany({
     orderBy: { name: "asc" },
-    select: { id: true, kind: true, name: true, aliases: true, unit: true },
+    select: {
+      id: true,
+      kind: true,
+      name: true,
+      aliases: true,
+      unit: true,
+      latitude: true,
+      longitude: true,
+      locationAccuracy: true,
+      locatedAt: true,
+      locatedBy: true,
+    },
   });
 
   return NextResponse.json({
     user: { name: user.name, isAdmin: user.isAdmin },
     clients: rows
       .filter((r) => r.kind === LaundryCatalogKind.CLIENT)
-      .map(({ id, name, aliases }) => ({ id, name, aliases })),
+      .map(({ id, name, aliases, ...loc }) => ({ id, name, aliases, location: locationOut(loc) })),
     items: rows
       .filter((r) => r.kind === LaundryCatalogKind.ITEM)
       .map(({ id, name, aliases, unit }) => ({ id, name, aliases, unit: unitOut(unit) })),

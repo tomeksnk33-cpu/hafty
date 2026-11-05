@@ -78,6 +78,9 @@ main:has(#grafik.on){max-width:1040px}
 .scroll{overflow-x:auto}
 .monthsum{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
 dialog#gDialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);padding:16px;width:min(640px,calc(100vw - 24px));max-height:calc(100vh - 48px);overflow:auto}
+.geo{text-align:center;margin:6px 0 2px}
+.geo .small{display:block;margin-top:4px}
+.geo a,.list a{color:var(--accent)}
 dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
 </style>
 </head>
@@ -100,6 +103,7 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
     <button id="mic" class="big">🎤 Rozpocznij trasę</button>
     <div class="state" id="state">Naciśnij przycisk i podaj nazwę klienta.</div>
     <div class="current" id="current"></div>
+    <div class="geo" id="clientGeo" hidden></div>
     <div class="heard" id="heard"></div>
     <div class="row" style="margin-top:10px">
       <input id="typed" placeholder="Albo wpisz to, co byś powiedział…" style="flex:1">
@@ -132,7 +136,9 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
     <div class="row" style="margin-top:10px"><button class="btn pri" id="cAdd">Dodaj</button></div>
   </div>
   <p class="small" id="cSync"></p>
-  <div class="card"><h2>Klienci (<span id="cCount">0</span>)</h2><ul class="list" id="cList"></ul></div>
+  <div class="card"><h2>Klienci (<span id="cCount">0</span>)</h2>
+    <p class="small" style="margin:0 0 6px">📍 <b>Pobierz dane geolokalizacji</b> zapisuje miejsce, w którym teraz stoi telefon — naciśnij, będąc u klienta. Kierowca może to zrobić też w zakładce <b>Trasa</b> po podaniu klienta.</p>
+    <ul class="list" id="cList"></ul></div>
 </section>
 
 <!-- ASORTYMENT -->

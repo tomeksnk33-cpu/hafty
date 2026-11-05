@@ -198,6 +198,7 @@ function ui() {
   $("#mic").classList.toggle("pulse", running);
   $("#state").innerHTML = mode === "client" ? "Czekam na <b>nazwę klienta</b>" : "Klient: podaj <b>asortyment i ilość</b>";
   $("#current").textContent = currentClient ? currentClient.name : "";
+  renderClientGeo();
   $("#who").textContent = local.worker || "";
   $("#sWorker").textContent = local.worker || "…";
   renderSummary(); renderBanner();
@@ -420,6 +421,62 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   if (b.dataset.tab === "cennik") loadCennik();
 });
 
+// ---------- geolokalizacja klientów ----------
+// Pracownik stojący u klienta zapisuje GPS telefonu jako miejsce dostawy (do planowania trasy kierowcy).
+// Zapisać może każdy pracownik pralni; usunąć zapisaną lokalizację – tylko administrator.
+const mapUrl = l => "https://www.google.com/maps/search/?api=1&query=" + l.lat + "," + l.lng;
+const navUrl = l => "https://www.google.com/maps/dir/?api=1&destination=" + l.lat + "," + l.lng;
+const geoBusy = new Set();
+function locText(l) {
+  const when = l.at ? new Date(l.at).toLocaleDateString("pl-PL") : "";
+  return `📍 ${l.lat.toFixed(6)}, ${l.lng.toFixed(6)}${l.accuracy != null ? " · ±" + Math.round(l.accuracy) + " m" : ""}` +
+    `<br>zapisano ${esc(when)}${l.by ? " · " + esc(l.by) : ""} · <a href="${mapUrl(l)}" target="_blank" rel="noopener">Mapa</a> · <a href="${navUrl(l)}" target="_blank" rel="noopener">Nawiguj</a>`;
+}
+function currentPosition() {
+  return new Promise((resolve, reject) => {
+    if (!("geolocation" in navigator)) return reject(new Error("Ten telefon albo przeglądarka nie udostępnia lokalizacji."));
+    navigator.geolocation.getCurrentPosition(resolve, err => reject(new Error(
+      err.code === 1 ? "Brak zgody na lokalizację. Zezwól tej stronie na dostęp do lokalizacji w ustawieniach przeglądarki i spróbuj ponownie." :
+      err.code === 3 ? "Telefon nie ustalił położenia na czas. Wyjdź na zewnątrz albo włącz GPS i spróbuj ponownie." :
+      "Nie udało się ustalić położenia. Sprawdź, czy lokalizacja (GPS) jest włączona.")),
+      { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 });
+  });
+}
+async function captureLocation(clientId) {
+  const c = cat().clients.find(x => x.id === clientId);
+  if (!c || geoBusy.has(clientId)) return;
+  if (c.location && !confirm(`„${c.name}” ma już zapisaną lokalizację. Zastąpić ją miejscem, w którym teraz jesteś?`)) return;
+  geoBusy.add(clientId); renderClientGeo(); renderList("c");
+  try {
+    const pos = await currentPosition();
+    const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+    if (accuracy > 150 && !confirm(`Telefon podaje położenie z dokładnością tylko ±${Math.round(accuracy)} m. Zapisać mimo to?\n\nLepiej wyjść na zewnątrz, włączyć GPS i spróbować ponownie.`)) return;
+    const d = await api("lokalizacja", { method: "PUT", body: { clientId, lat, lng, accuracy } });
+    c.location = d.location; save();
+    log("Zapisano lokalizację: " + c.name + (accuracy ? " (±" + Math.round(accuracy) + " m)" : ""), "ok");
+  } catch (e) {
+    alert("Nie zapisano lokalizacji: " + e.message);
+    if (e.status === 404) await loadCatalog();
+  } finally { geoBusy.delete(clientId); renderClientGeo(); renderList("c"); }
+}
+async function clearLocation(clientId) {
+  const c = cat().clients.find(x => x.id === clientId);
+  if (!c || !confirm(`Usunąć zapisaną lokalizację klienta „${c.name}”?`)) return;
+  try { await api("lokalizacja?clientId=" + encodeURIComponent(clientId), { method: "DELETE" }); c.location = null; save(); }
+  catch (e) { alert("Nie usunięto: " + e.message); }
+  renderClientGeo(); renderList("c");
+}
+const geoButton = (id, has) => `<button class='btn' data-g ${geoBusy.has(id) ? "disabled" : ""}>${geoBusy.has(id) ? "⏳ Ustalam położenie…" : has ? "📍 Pobierz ponownie" : "📍 Pobierz dane geolokalizacji"}</button>`;
+// w zakładce Trasa: lokalizacja klienta, którego właśnie podano
+function renderClientGeo() {
+  const box = $("#clientGeo");
+  const c = currentClient && cat().clients.find(x => x.id === currentClient.id);
+  box.hidden = !c;
+  if (!c) { box.innerHTML = ""; return; }
+  box.innerHTML = geoButton(c.id, !!c.location) + `<span class='small'>${c.location ? locText(c.location) : "Brak zapisanej lokalizacji."}</span>`;
+  box.querySelector("[data-g]").onclick = () => captureLocation(c.id);
+}
+
 // shared catalog lists
 const listKey = kind => kind === "c" ? "clients" : "items";
 function renderList(kind) {
@@ -429,7 +486,11 @@ function renderList(kind) {
   [...arr].sort((a, b) => a.name.localeCompare(b.name, "pl")).forEach(x => {
     const li = document.createElement("li");
     const unitBtn = kind === "a" ? `<button class='btn' data-u title='Zmień jednostkę'>${unitShort(unitOfItem(x))}</button>` : "";
-    li.innerHTML = `<span><b>${esc(x.name)}</b>${kind === "a" ? ` <span class='small'>· liczone w ${unitLabel(unitOfItem(x))}</span>` : ""}${x.aliases?.length ? `<br><span class='small'>${esc(x.aliases.join(", "))}</span>` : ""}</span><span class='row'>${unitBtn}<button class='btn' data-e>Edytuj</button><button class='btn del' data-d>Usuń</button></span>`;
+    const geo = kind === "c" ? `<br><span class='small'>${x.location ? locText(x.location) : "📍 brak lokalizacji"}</span>` : "";
+    const geoBtns = kind === "c" ? geoButton(x.id, !!x.location) + (x.location ? "<button class='btn del' data-gx>Usuń lokalizację</button>" : "") : "";
+    li.innerHTML = `<span><b>${esc(x.name)}</b>${kind === "a" ? ` <span class='small'>· liczone w ${unitLabel(unitOfItem(x))}</span>` : ""}${x.aliases?.length ? `<br><span class='small'>${esc(x.aliases.join(", "))}</span>` : ""}${geo}</span><span class='row' style='justify-content:flex-end'>${geoBtns}${unitBtn}<button class='btn' data-e>Edytuj</button><button class='btn del' data-d>Usuń</button></span>`;
+    const gb = li.querySelector("[data-g]"); if (gb) gb.onclick = () => captureLocation(x.id);
+    const gx = li.querySelector("[data-gx]"); if (gx) gx.onclick = () => clearLocation(x.id);
     const ub = li.querySelector("[data-u]");
     if (ub) ub.onclick = () => {
       // szt. -> kg -> szt.+kg -> szt.

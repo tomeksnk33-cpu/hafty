@@ -223,6 +223,15 @@ model LaundryCatalogEntry {
   aliases   String[]           @default([])
   /// Tylko dla asortymentu: sztuki albo kilogramy.
   unit      LaundryUnit        @default(SZT)
+  /// Tylko dla klienta: miejsce dostawy z GPS telefonu (stopnie WGS84),
+  /// do późniejszego planowania trasy kierowcy.
+  latitude         Float?
+  longitude        Float?
+  /// Dokładność pomiaru w metrach, jak podał telefon.
+  locationAccuracy Float?
+  locatedAt        DateTime?
+  /// Imię pracownika, który zapisał lokalizację.
+  locatedBy        String?
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
