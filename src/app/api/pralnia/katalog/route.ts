@@ -5,6 +5,7 @@ import { LaundryCatalogKind, LaundryUnit } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { laundryUser } from "@/lib/pralnia/access";
 import { locationOut } from "@/lib/pralnia/location";
+import { laundryUsage } from "@/lib/pralnia/usage";
 
 // Wspólna lista klientów i asortymentu pralni. Czytać ją musi każdy pracownik
 // pralni (rozpoznawanie mowy), zmieniać tylko administrator. Każda zmiana
@@ -65,14 +66,30 @@ export async function GET() {
     },
   });
 
+  const usage = await laundryUsage();
+  const items = rows.filter((r) => r.kind === LaundryCatalogKind.ITEM);
+
+  // `visits` (ile tras z tym klientem) i `items` (asortyment klienta, najczęstszy
+  // najpierw) układają przyciski na ekranie dotykowym trasy.
   return NextResponse.json({
     user: { name: user.name, isAdmin: user.isAdmin },
     clients: rows
       .filter((r) => r.kind === LaundryCatalogKind.CLIENT)
-      .map(({ id, name, aliases, ...loc }) => ({ id, name, aliases, location: locationOut(loc) })),
-    items: rows
-      .filter((r) => r.kind === LaundryCatalogKind.ITEM)
-      .map(({ id, name, aliases, unit }) => ({ id, name, aliases, unit: unitOut(unit) })),
+      .map(({ id, name, aliases, ...loc }) => ({
+        id,
+        name,
+        aliases,
+        location: locationOut(loc),
+        visits: usage.visits(name),
+        items: usage.clientItems({ id, name }, items),
+      })),
+    items: items.map(({ id, name, aliases, unit }) => ({
+      id,
+      name,
+      aliases,
+      unit: unitOut(unit),
+      uses: usage.itemTotal(name),
+    })),
   });
 }
 
