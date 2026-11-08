@@ -5,6 +5,7 @@ import { LaundryCatalogKind, LaundryUnit } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { laundryUser } from "@/lib/pralnia/access";
 import { locationOut } from "@/lib/pralnia/location";
+import { normalizePhone } from "@/lib/pralnia/phone";
 import { laundryUsage } from "@/lib/pralnia/usage";
 
 // Wspólna lista klientów i asortymentu pralni. Czytać ją musi każdy pracownik
@@ -25,6 +26,15 @@ const entrySchema = z.object({
     ),
   /** Tylko asortyment: „szt” albo „kg”. */
   unit: z.enum(["szt", "kg", "szt_kg"]).optional(),
+  /** Tylko klient: numery telefonów, z których może przyjść SMS o odbiór prania. */
+  phones: z
+    .array(z.string())
+    .optional()
+    .transform((list) =>
+      list === undefined
+        ? undefined
+        : [...new Set(list.map(normalizePhone).filter((p): p is string => !!p))].slice(0, 10),
+    ),
 });
 
 const UNIT = { szt: LaundryUnit.SZT, kg: LaundryUnit.KG, szt_kg: LaundryUnit.SZT_KG } as const;
@@ -63,6 +73,7 @@ export async function GET() {
       locationAccuracy: true,
       locatedAt: true,
       locatedBy: true,
+      phones: true,
     },
   });
 
@@ -75,10 +86,11 @@ export async function GET() {
     user: { name: user.name, isAdmin: user.isAdmin },
     clients: rows
       .filter((r) => r.kind === LaundryCatalogKind.CLIENT)
-      .map(({ id, name, aliases, ...loc }) => ({
+      .map(({ id, name, aliases, phones, ...loc }) => ({
         id,
         name,
         aliases,
+        phones,
         location: locationOut(loc),
         visits: usage.visits(name),
         items: usage.clientItems({ id, name }, items),
@@ -100,9 +112,9 @@ export async function POST(request: Request) {
   const parsed = createSchema.safeParse(await readJson(request));
   if (!parsed.success) return invalid(parsed.error);
 
-  const { kind, name, aliases, unit } = parsed.data;
+  const { kind, name, aliases, unit, phones } = parsed.data;
   const entry = await prisma.laundryCatalogEntry.create({
-    data: { kind: KIND[kind], name, aliases, unit: UNIT[unit ?? "szt"] },
+    data: { kind: KIND[kind], name, aliases, unit: UNIT[unit ?? "szt"], phones: kind === "clients" ? phones ?? [] : [] },
     select: { id: true, name: true, aliases: true, unit: true },
   });
 
@@ -116,10 +128,10 @@ export async function PUT(request: Request) {
   const parsed = updateSchema.safeParse(await readJson(request));
   if (!parsed.success) return invalid(parsed.error);
 
-  const { id, name, aliases, unit } = parsed.data;
+  const { id, name, aliases, unit, phones } = parsed.data;
   const { count } = await prisma.laundryCatalogEntry.updateMany({
     where: { id },
-    data: { name, aliases, ...(unit ? { unit: UNIT[unit] } : {}) },
+    data: { name, aliases, ...(unit ? { unit: UNIT[unit] } : {}), ...(phones ? { phones } : {}) },
   });
 
   if (count === 0) {

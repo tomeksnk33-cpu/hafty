@@ -232,11 +232,14 @@ model LaundryCatalogEntry {
   locatedAt        DateTime?
   /// Imię pracownika, który zapisał lokalizację.
   locatedBy        String?
+  /// Tylko dla klienta: numery telefonów (+48…), po których rozpoznajemy SMS-y.
+  phones           String[]  @default([])
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
   clientPrices LaundryPrice[] @relation("CenaKlienta")
   itemPrices   LaundryPrice[] @relation("CenaAsortymentu")
+  pickups      LaundryPickup[]
 
   @@index([kind, name])
 }
@@ -257,6 +260,33 @@ model LaundryPrice {
 
   @@id([clientId, itemId])
   @@index([itemId])
+}
+
+/// Zgłoszenie „proszę odebrać pranie" — z SMS-a od klienta (przez bramkę SMS)
+/// albo dodane ręcznie (np. po telefonie). Kierowca odhacza je po odbiorze.
+model LaundryPickup {
+  id         String              @id @default(cuid())
+  /// NULL, gdy SMS przyszedł z nieznanego numeru albo klienta usunięto.
+  clientId   String?
+  /// Nazwa klienta z chwili zgłoszenia.
+  clientName String?
+  /// Numer nadawcy SMS-a (+48…).
+  phone      String?
+  message    String?
+  source     LaundryPickupSource @default(MANUAL)
+  createdBy  String?
+  createdAt  DateTime            @default(now())
+  doneAt     DateTime?
+  doneBy     String?
+
+  client LaundryCatalogEntry? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([doneAt, createdAt])
+}
+
+enum LaundryPickupSource {
+  SMS
+  MANUAL
 }
 
 /// Zakończona trasa. `id` nadaje telefon, dzięki czemu ponowna wysyłka po

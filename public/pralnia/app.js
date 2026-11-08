@@ -498,7 +498,7 @@ function renderList(kind) {
   [...arr].sort((a, b) => a.name.localeCompare(b.name, "pl")).forEach(x => {
     const li = document.createElement("li");
     const unitBtn = kind === "a" ? `<button class='btn' data-u title='Zmień jednostkę'>${unitShort(unitOfItem(x))}</button>` : "";
-    const geo = kind === "c" ? `<br><span class='small'>${x.location ? locText(x.location) : "📍 brak lokalizacji"}</span>` : "";
+    const geo = kind === "c" ? `<br><span class='small'>📞 ${x.phones?.length ? x.phones.map(fmtPhone).map(esc).join(", ") : "brak telefonu"}</span><br><span class='small'>${x.location ? locText(x.location) : "📍 brak lokalizacji"}</span>` : "";
     const geoBtns = kind === "c" ? geoButton(x.id, !!x.location) + (x.location ? "<button class='btn del' data-gx>Usuń lokalizację</button>" : "") : "";
     li.innerHTML = `<span><b>${esc(x.name)}</b>${kind === "a" ? ` <span class='small'>· liczone w ${unitLabel(unitOfItem(x))}</span>` : ""}${x.aliases?.length ? `<br><span class='small'>${esc(x.aliases.join(", "))}</span>` : ""}${geo}</span><span class='row' style='justify-content:flex-end'>${geoBtns}${unitBtn}<button class='btn' data-e>Edytuj</button><button class='btn del' data-d>Usuń</button></span>`;
     const gb = li.querySelector("[data-g]"); if (gb) gb.onclick = () => captureLocation(x.id);
@@ -517,7 +517,12 @@ function renderList(kind) {
     li.querySelector("[data-e]").onclick = () => {
       const n = prompt("Nazwa:", x.name); if (n === null) return;
       const a = prompt("Inne nazwy (po przecinku):", (x.aliases || []).join(", ")); if (a === null) return;
-      changeCatalog({ method: "PUT", body: { id: x.id, name: n.trim() || x.name, aliases: a.split(",").map(s => s.trim()).filter(Boolean) } });
+      const body = { id: x.id, name: n.trim() || x.name, aliases: a.split(",").map(s => s.trim()).filter(Boolean) };
+      if (kind === "c") {
+        const ph = prompt("Telefony (po przecinku) – z nich klient wysyła SMS o odbiór prania:", (x.phones || []).map(fmtPhone).join(", ")); if (ph === null) return;
+        body.phones = splitList(ph);
+      }
+      changeCatalog({ method: "PUT", body });
     };
     ul.append(li);
   });
@@ -527,6 +532,7 @@ function addFrom(kind) {
   const aliases = $("#" + kind + "Alias").value.split(",").map(s => s.trim()).filter(Boolean);
   const body = { kind: listKey(kind), name: n, aliases };
   if (kind === "a") body.unit = $("#aUnit").value;
+  if (kind === "c") { body.phones = splitList($("#cPhone").value); $("#cPhone").value = ""; }
   changeCatalog({ method: "POST", body });
   $("#" + kind + "Name").value = ""; $("#" + kind + "Alias").value = "";
 }
@@ -787,6 +793,83 @@ $("#gPrev").onclick = () => { g.month--; if (g.month < 0) { g.month = 11; g.year
 $("#gNext").onclick = () => { g.month++; if (g.month > 11) { g.month = 0; g.year++; } g.selected = dk(new Date(g.year, g.month, 1)); loadGrafik(); };
 showAdmin();
 
+// ---------- do odebrania (zgłoszenia odbioru prania) ----------
+// SMS od klienta trafia przez bramkę SMS na serwer; zgłoszenie można też dodać ręcznie (np. po telefonie).
+// Kierowca jedzie, odbiera pranie i odhacza „Odebrane”. Lista odświeża się co minutę.
+const splitList = v => String(v).split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
+const fmtPhone = p => { const m = /^\+48(\d{3})(\d{3})(\d{3})$/.exec(p || ""); return m ? `+48 ${m[1]} ${m[2]} ${m[3]}` : (p || ""); };
+const pick = { list: [], seen: null };
+function whenText(iso) {
+  const d = new Date(iso), now = new Date();
+  const t = d.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+  if (dk(d) === dk(now)) return "dziś " + t;
+  if (dk(d) === dk(new Date(now - 864e5))) return "wczoraj " + t;
+  return d.toLocaleDateString("pl-PL", { day: "numeric", month: "short" }) + " " + t;
+}
+async function loadPickups() {
+  try { pick.list = await api("odbiory"); } catch (e) { return; }
+  const open = new Set(pick.list.filter(p => !p.doneAt).map(p => p.id));
+  const fresh = pick.seen ? [...open].filter(id => !pick.seen.has(id)) : [];
+  pick.seen = open;
+  renderPickups(new Set(fresh));
+  if (fresh.length) log("Nowe zgłoszenie odbioru prania (" + fresh.length + ")", "warn");
+}
+function renderPickups(fresh = new Set()) {
+  const open = pick.list.filter(p => !p.doneAt), done = pick.list.filter(p => p.doneAt).reverse();
+  $("#pkCount").textContent = open.length ? "(" + open.length + ")" : "";
+  const row = p => {
+    const c = p.clientId && cat().clients.find(x => x.id === p.clientId);
+    const phone = p.phone || c?.phones?.[0];
+    const who = p.client || (p.phone ? "Nieznany numer " + fmtPhone(p.phone) : "—");
+    const meta = whenText(p.createdAt) + (p.source === "sms" ? " · SMS" + (p.phone && p.client ? " z " + fmtPhone(p.phone) : "") : p.createdBy ? " · dodał(a) " + p.createdBy : "") +
+      (p.doneAt ? " · odebrane " + whenText(p.doneAt) + (p.doneBy ? " (" + p.doneBy + ")" : "") : "");
+    const acts = p.doneAt
+      ? `<button class='btn' data-undo>Cofnij</button>`
+      : (c?.location ? `<a class='btn' href='${navUrl(c.location)}' target='_blank' rel='noopener'>🧭 Nawiguj</a>` : "") +
+        (phone ? `<a class='btn' href='tel:${esc(phone)}'>📞 Zadzwoń</a>` : "") +
+        (c ? `<button class='btn' data-pick>Wpisz pranie</button>` : `<select data-assign><option value=''>Przypisz do klienta…</option>${[...cat().clients].sort((a, b) => a.name.localeCompare(b.name, "pl")).map(x => `<option value='${esc(x.id)}'>${esc(x.name)}</option>`).join("")}</select>`) +
+        `<button class='btn ok' data-done>✓ Odebrane</button>`;
+    return `<div class='pk${p.doneAt ? " done" : ""}${fresh.has(p.id) ? " new" : ""}' data-id='${esc(p.id)}'><div class='who'><b>${esc(who)}</b><div class='small'>${esc(meta)}</div>${p.message ? `<div class='msg'>„${esc(p.message)}”</div>` : ""}</div><div class='acts'>${acts}${local.isAdmin ? "<button class='btn del' data-x title='Usuń zgłoszenie'>✕</button>" : ""}</div></div>`;
+  };
+  $("#pkList").innerHTML = open.length ? open.map(row).join("") : "<div class='pkEmpty'>Brak zgłoszeń do odebrania.</div>";
+  $("#pkDoneBox").hidden = !done.length; $("#pkDoneCount").textContent = done.length;
+  $("#pkDone").innerHTML = done.map(row).join("");
+  document.querySelectorAll("#pickups .pk").forEach(el => {
+    const p = pick.list.find(x => x.id === el.dataset.id); if (!p) return;
+    const on = (sel, fn) => { const b = el.querySelector(sel); if (b) b.onclick = fn; };
+    on("[data-done]", () => patchPickup(p, { done: true }));
+    on("[data-undo]", () => patchPickup(p, { done: false }));
+    on("[data-pick]", () => { const c = cat().clients.find(x => x.id === p.clientId); if (c) pickClient(c); });
+    on("[data-x]", async () => { if (!confirm("Usunąć to zgłoszenie?")) return; try { await api("odbiory?id=" + encodeURIComponent(p.id), { method: "DELETE" }); } catch (e) { alert(e.message); } loadPickups(); });
+    const sel = el.querySelector("[data-assign]");
+    if (sel) sel.onchange = async () => {
+      const c = cat().clients.find(x => x.id === sel.value); if (!c) return;
+      await patchPickup(p, { done: false, clientId: c.id });
+      // administrator może od razu zapamiętać numer u klienta, żeby kolejne SMS-y rozpoznawały się same
+      if (local.isAdmin && p.phone && !(c.phones || []).includes(p.phone) && confirm(`Zapisać numer ${fmtPhone(p.phone)} u klienta „${c.name}”?`))
+        await changeCatalog({ method: "PUT", body: { id: c.id, name: c.name, aliases: c.aliases || [], phones: [...(c.phones || []), p.phone] } });
+    };
+  });
+}
+async function patchPickup(p, body) {
+  try { await api("odbiory", { method: "PATCH", body: { id: p.id, ...body } }); }
+  catch (e) { alert("Nie zapisano: " + e.message); }
+  await loadPickups();
+}
+function fillPickupClients() {
+  $("#pkClient").innerHTML = "<option value=''>Wybierz klienta…</option>" + [...cat().clients].sort((a, b) => a.name.localeCompare(b.name, "pl")).map(c => `<option value='${esc(c.id)}'>${esc(c.name)}</option>`).join("");
+}
+$("#pkAddOpen").onclick = () => { fillPickupClients(); $("#pkAdd").hidden = false; };
+$("#pkAddCancel").onclick = () => { $("#pkAdd").hidden = true; };
+$("#pkAddGo").onclick = async () => {
+  const clientId = $("#pkClient").value; if (!clientId) { alert("Wybierz klienta."); return; }
+  try { await api("odbiory", { method: "POST", body: { clientId, message: $("#pkMsg").value.trim() || undefined } }); }
+  catch (e) { alert("Nie dodano: " + e.message); return; }
+  $("#pkMsg").value = ""; $("#pkAdd").hidden = true; loadPickups();
+};
+setInterval(() => { if (document.visibilityState === "visible") loadPickups(); }, 60000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") loadPickups(); });
+
 // ---------- wybór dotykiem ----------
 // Klient (przyciski od najczęściej obsługiwanych, filtr literą) -> asortyment klienta -> ilość / kg.
 // Działa razem z głosem: oba sposoby zmieniają tego samego bieżącego klienta i tę samą trasę.
@@ -918,5 +1001,5 @@ $("#qCancel").onclick = $("#qClose").onclick = () => $("#qDialog").close();
 
 window.addEventListener("online", () => flushPending(false));
 renderList("c"); renderList("a"); ui();
-loadCatalog().then(ok => { if (ok) flushPending(false); loadHistory(); });
+loadCatalog().then(ok => { if (ok) flushPending(false); loadHistory(); loadPickups(); });
 window.__pralnia = { handle, parseItems, findClient, local };

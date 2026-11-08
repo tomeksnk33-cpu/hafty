@@ -92,6 +92,13 @@ Mail wymaga zmiennych środowiskowych (patrz `.env.example`):
 | `SMTP_USER` | login skrzynki, z której idą maile, np. `trasy@gtm-bukowski.pl` |
 | `SMTP_PASS` | hasło tej skrzynki |
 | `MAIL_FROM` | opcjonalnie nadawca, domyślnie `SMTP_USER` |
+| `SMS_WEBHOOK_TOKEN` | pralnia: tajny klucz adresu `/api/pralnia/sms?token=…`, na który bramka SMS (np. SMSAPI.pl) przekazuje SMS-y od klientów; puste = odbiór SMS wyłączony |
+
+**Zgłoszenia odbioru prania (pralnia).** Lista „Do odebrania” w zakładce Trasa:
+SMS od klienta (rozpoznanego po numerze z pola „Telefony” w zakładce Klienci)
+albo zgłoszenie dodane ręcznie. Każdy pracownik pralni widzi, dodaje i odhacza
+zgłoszenia; usuwa je administrator. Przy SMS-ie wychodzi też mail na `MAIL_TO`.
+Tabela `LaundryPickup`, kod: `src/app/api/pralnia/odbiory/`, `src/app/api/pralnia/sms/`.
 
 ## Co jest w środku
 
