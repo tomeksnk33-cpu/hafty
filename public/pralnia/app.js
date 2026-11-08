@@ -193,12 +193,12 @@ function setupRec() {
 // ---------- dialogue ----------
 function log(msg, cls = "") { const d = document.createElement("div"); d.className = cls; d.textContent = new Date().toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }) + "  " + msg; $("#log").prepend(d); }
 function ui() {
-  $("#mic").textContent = running ? "⏹ Zatrzymaj słuchanie" : "🎤 Rozpocznij trasę";
+  $("#mic").textContent = running ? "⏹ Zatrzymaj słuchanie" : "🎤 Rozpocznij trasę głosem";
   $("#mic").classList.toggle("stop", running);
   $("#mic").classList.toggle("pulse", running);
   $("#state").innerHTML = mode === "client" ? "Czekam na <b>nazwę klienta</b>" : "Klient: podaj <b>asortyment i ilość</b>";
   $("#current").textContent = currentClient ? currentClient.name : "";
-  renderClientGeo();
+  renderClientGeo(); renderTouch();
   $("#who").textContent = local.worker || "";
   $("#sWorker").textContent = local.worker || "…";
   renderSummary(); renderBanner();
@@ -304,14 +304,26 @@ function summaryText(route) {
   for (const [c, items] of grouped(route)) { s += c + "\n"; for (const v of items.values()) s += "  - " + v.label + ": " + fmtEntry(v) + "\n"; }
   return s;
 }
+// lista wpisów bieżącej trasy (panel po prawej): klient, a pod nim wpisy z przyciskiem usunięcia
 function renderSummary() {
   if (!local.route.length) { $("#summary").innerHTML = "Brak wpisów."; return; }
-  let h = "<table><tr><th>Klient / asortyment</th><th class='n'>Ilość</th></tr>";
-  for (const [c, items] of grouped(local.route)) {
-    h += `<tr><td colspan=2><b>${esc(c)}</b></td></tr>`;
-    for (const v of items.values()) h += `<tr><td>&nbsp;&nbsp;${esc(v.label)}</td><td class='n'>${fmtEntry(v)}</td></tr>`;
+  const byClient = new Map();
+  local.route.forEach((r, i) => { if (!byClient.has(r.client)) byClient.set(r.client, []); byClient.get(r.client).push(i); });
+  let h = "";
+  for (const [c, idx] of byClient) {
+    h += `<div class='rClient'>${esc(c)}</div>`;
+    for (const i of idx) { const r = local.route[i]; h += `<div class='rRow'><span class='nm'>${esc(r.item)}</span><span class='q'>${fmtEntry(r)}</span><button data-del='${i}' aria-label='Usuń wpis' title='Usuń wpis'>✕</button></div>`; }
   }
-  $("#summary").innerHTML = h + "</table>";
+  const pcs = local.route.reduce((a, r) => a + (r.unit === "kg" ? 0 : r.qty), 0);
+  const kg = local.route.reduce((a, r) => a + (r.unit === "kg" ? r.qty : r.unit === "szt_kg" ? r.kg || 0 : 0), 0);
+  h += `<div class='rTotal'>Klientów: <b>${byClient.size}</b> · wpisów: <b>${local.route.length}</b>${pcs ? " · " + fmtQty(r2(pcs), "szt") : ""}${kg ? " · " + fmtQty(r2(kg), "kg") : ""}</div>`;
+  $("#summary").innerHTML = h;
+  $("#summary").querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+    const r = local.route[+b.dataset.del]; if (!r) return;
+    if (!confirm(`Usunąć z trasy: ${r.client} – ${r.item} ${fmtEntry(r)}?`)) return;
+    local.route.splice(+b.dataset.del, 1); if (!local.route.length) local.routeId = null;
+    save(); log("Usunięto: " + r.client + " – " + r.item + " " + fmtEntry(r), "warn"); ui();
+  });
 }
 function renderBanner() {
   const b = $("#banner");
@@ -774,6 +786,135 @@ $("#pCopyFrom").onchange = async e => {
 $("#gPrev").onclick = () => { g.month--; if (g.month < 0) { g.month = 11; g.year--; } g.selected = dk(new Date(g.year, g.month, 1)); loadGrafik(); };
 $("#gNext").onclick = () => { g.month++; if (g.month > 11) { g.month = 0; g.year++; } g.selected = dk(new Date(g.year, g.month, 1)); loadGrafik(); };
 showAdmin();
+
+// ---------- wybór dotykiem ----------
+// Klient (przyciski od najczęściej obsługiwanych, filtr literą) -> asortyment klienta -> ilość / kg.
+// Działa razem z głosem: oba sposoby zmieniają tego samego bieżącego klienta i tę samą trasę.
+const ABC = "A B C Ć D E F G H I J K L Ł M N O Ó P R S Ś T U V W Z Ź Ż".split(" ");
+const touch = { letter: "", allItems: false };
+const firstLetter = name => { const ch = String(name).trim().charAt(0).toLocaleUpperCase("pl"); return /\p{L}/u.test(ch) ? ch : "#"; };
+const byUse = (a, b, k) => (b[k] || 0) - (a[k] || 0) || a.name.localeCompare(b.name, "pl");
+function pickClient(c) {
+  currentClient = c; mode = "items"; touch.allItems = false;
+  log("Klient: " + c.name, "ok"); ui(); window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function renderTouch() {
+  const c = currentClient && cat().clients.find(x => x.id === currentClient.id || x.name === currentClient.name);
+  $("#tClientStep").hidden = !!c; $("#tItemStep").hidden = !c;
+  if (c) renderTouchItems(c); else renderTouchClients();
+}
+function renderTouchClients() {
+  const clients = [...cat().clients].sort((a, b) => byUse(a, b, "visits"));
+  const letters = new Set(clients.map(c => firstLetter(c.name)));
+  if (touch.letter && !letters.has(touch.letter)) touch.letter = "";
+  const keys = [...ABC, ...[...letters].filter(l => !ABC.includes(l)).sort((a, b) => a.localeCompare(b, "pl"))];
+  $("#tAbc").innerHTML = `<button data-l="" class="${touch.letter ? "" : "on"}" style="padding:0 16px">Wszyscy</button>` +
+    keys.map(l => `<button data-l="${esc(l)}" class="${touch.letter === l ? "on" : ""}" ${letters.has(l) ? "" : "disabled"}>${esc(l)}</button>`).join("");
+  $("#tAbc").querySelectorAll("button").forEach(b => b.onclick = () => { touch.letter = b.dataset.l; renderTouchClients(); });
+  const list = touch.letter ? clients.filter(c => firstLetter(c.name) === touch.letter) : clients;
+  const box = $("#tClients"); box.innerHTML = "";
+  if (!list.length) { box.innerHTML = `<div class='empty'>${cat().clients.length ? "Brak klientów na tę literę." : "Brak klientów. Administrator dodaje ich w zakładce Klienci."}</div>`; return; }
+  const inRoute = new Set(local.route.map(r => r.client));
+  for (const c of list) {
+    const b = document.createElement("button");
+    b.className = "tile" + (inRoute.has(c.name) ? " done" : "");
+    b.innerHTML = `<span>${esc(c.name)}</span>` + (inRoute.has(c.name) ? `<span class='got'>✓ już w tej trasie</span>` : c.visits ? `<span class='sub'>${c.visits} ${c.visits === 1 ? "trasa" : c.visits % 10 >= 2 && c.visits % 10 <= 4 && (c.visits % 100 < 12 || c.visits % 100 > 14) ? "trasy" : "tras"}</span>` : "");
+    b.onclick = () => pickClient(c);
+    box.append(b);
+  }
+}
+function renderTouchItems(c) {
+  $("#tClientName").textContent = c.name;
+  const all = [...cat().items].sort((a, b) => byUse(a, b, "uses"));
+  const own = (c.items || []).map(id => cat().items.find(i => i.id === id)).filter(Boolean);
+  const showAll = touch.allItems || !own.length;
+  const list = showAll ? [...own, ...all.filter(i => !own.includes(i))] : own;
+  const more = all.length - own.length;
+  $("#tAllItems").hidden = !own.length || !more;
+  $("#tAllItems").textContent = touch.allItems ? "Pokaż tylko asortyment tego klienta" : `Pokaż cały asortyment (+${more})`;
+  // co już jest w trasie u tego klienta
+  const got = new Map();
+  for (const r of local.route) if (r.client === c.name) addTo(got, r.item, r);
+  const box = $("#tItems"); box.innerHTML = "";
+  if (!list.length) { box.innerHTML = "<div class='empty'>Brak asortymentu. Administrator dodaje go w zakładce Asortyment.</div>"; return; }
+  for (const it of list) {
+    const u = unitOfItem(it);
+    const done = [...got.values()].find(v => v.label === it.name);
+    const b = document.createElement("button");
+    b.className = "tile" + (done ? " done" : "");
+    b.innerHTML = `<span>${esc(it.name)}</span><span class='sub'>${u === "kg" ? "kilogramy" : u === "szt_kg" ? "sztuki + kilogramy" : "sztuki"}</span>` + (done ? `<span class='got'>✓ ${fmtEntry(done)}</span>` : "");
+    b.onclick = () => openQty(c, it);
+    box.append(b);
+  }
+}
+$("#tBack").onclick = () => { mode = "client"; currentClient = null; log("Następny klient"); ui(); };
+$("#tAllItems").onclick = () => { touch.allItems = !touch.allItems; renderTouch(); };
+
+// okno ilości: duża klawiatura numeryczna; dla „szt.+kg” dwa pola
+const q = { client: null, item: null, fields: [], active: "" };
+const FIELD = { szt: "Sztuki", kg: "Kilogramy" };
+function openQty(c, it) {
+  const u = unitOfItem(it);
+  Object.assign(q, { client: c, item: it, fields: u === "szt_kg" ? ["szt", "kg"] : [u], active: u === "kg" ? "kg" : "szt" });
+  $("#qClient").textContent = c.name;
+  $("#qTitle").textContent = it.name;
+  $("#qErr").textContent = "";
+  $("#qFields").innerHTML = q.fields.map(f => `<div class='qField' data-f='${f}'><label for='q_${f}'>${FIELD[f]}</label><input id='q_${f}' inputmode='none' autocomplete='off' placeholder='0'></div>`).join("");
+  $("#qFields").querySelectorAll(".qField").forEach(el => {
+    const f = el.dataset.f, inp = el.querySelector("input");
+    el.onclick = () => { q.active = f; markQ(); };
+    inp.onfocus = () => { q.active = f; markQ(); };
+    inp.oninput = () => { inp.value = cleanNum(inp.value, f); $("#qErr").textContent = ""; };
+    inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); qNextOrAdd(); } };
+  });
+  markQ();
+  $("#qDialog").showModal();
+  qInput(q.active).focus(); // inputmode=none: bez klawiatury ekranowej systemu, ale działa zwykła klawiatura
+}
+// sztuki tylko całe, kilogramy z przecinkiem (najwyżej 2 miejsca)
+function cleanNum(v, f) {
+  v = String(v).replace(/\./g, ",").replace(f === "kg" ? /[^0-9,]/g : /[^0-9]/g, "");
+  const i = v.indexOf(",");
+  if (i >= 0) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/,/g, "").slice(0, 2);
+  return v.replace(/^0+(?=\d)/, "").slice(0, 8);
+}
+function markQ() {
+  $("#qFields").querySelectorAll(".qField").forEach(el => el.classList.toggle("on", el.dataset.f === q.active));
+  $("#qPad").querySelector("[data-k=',']").disabled = q.active !== "kg";
+}
+const qInput = f => $("#q_" + f);
+$("#qPad").innerHTML = ["7", "8", "9", "4", "5", "6", "1", "2", "3", ",", "0", "⌫"].map(k => `<button type='button' data-k='${k}'>${k}</button>`).join("");
+$("#qPad").querySelectorAll("button").forEach(b => b.onclick = () => {
+  const inp = qInput(q.active); if (!inp) return;
+  inp.value = b.dataset.k === "⌫" ? inp.value.slice(0, -1) : cleanNum(inp.value + b.dataset.k, q.active);
+  $("#qErr").textContent = "";
+});
+function qNextOrAdd() {
+  const i = q.fields.indexOf(q.active);
+  if (i < q.fields.length - 1 && !qInput(q.fields[i + 1]).value) { q.active = q.fields[i + 1]; markQ(); qInput(q.active).focus(); return; }
+  addFromQty();
+}
+function addFromQty() {
+  const val = f => { const v = qInput(f)?.value || ""; return v ? Number(v.replace(",", ".")) : 0; };
+  const u = unitOfItem(q.item);
+  const pcs = Math.round(val("szt")), kg = r2(val("kg"));
+  let e;
+  if (u === "szt_kg") {
+    if (!pcs || !kg) { $("#qErr").textContent = !pcs ? "Podaj liczbę sztuk." : "Podaj kilogramy."; q.active = !pcs ? "szt" : "kg"; markQ(); return; }
+    e = { unit: u, qty: pcs, kg };
+  } else {
+    const n = u === "kg" ? kg : pcs;
+    if (!n) { $("#qErr").textContent = u === "kg" ? "Podaj kilogramy." : "Podaj liczbę sztuk."; return; }
+    e = { unit: u, qty: n };
+  }
+  if (!local.routeId) local.routeId = newId();
+  const entry = { client: q.client.name, item: q.item.name, ...e, t: Date.now() };
+  local.route.push(entry); save();
+  log(q.client.name + ": " + q.item.name + " × " + fmtEntry(entry), "ok");
+  $("#qDialog").close(); ui();
+}
+$("#qOk").onclick = addFromQty;
+$("#qCancel").onclick = $("#qClose").onclick = () => $("#qDialog").close();
 
 window.addEventListener("online", () => flushPending(false));
 renderList("c"); renderList("a"); ui();

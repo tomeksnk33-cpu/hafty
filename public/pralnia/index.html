@@ -81,6 +81,61 @@ dialog#gDialog{border:1px solid var(--line);border-radius:14px;background:var(--
 .geo{text-align:center;margin:6px 0 2px}
 .geo .small{display:block;margin-top:4px}
 .geo a,.list a{color:var(--accent)}
+.touch .geo{text-align:left;margin:0 0 10px}
+.touch .geo .btn{font-size:clamp(14px,1vw,18px);padding:10px 14px}
+/* ---- trasa: ekran dotykowy (również monitory 24–27") ---- */
+main:has(#trasa.on){max-width:1800px}
+.trasaGrid{display:block}
+@media (min-width:1100px){
+  .trasaGrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(380px,30%);gap:16px;align-items:start}
+  .trasaSide{position:sticky;top:110px}
+  .trasaSide .card{max-height:calc(100vh - 130px);display:flex;flex-direction:column}
+  .trasaSide #summary{overflow:auto;flex:1;min-height:0}
+}
+.tStep{font-size:clamp(18px,1.6vw,26px);margin:4px 0 12px}
+.abc{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.abc button{min-width:clamp(44px,3.3vw,64px);height:clamp(44px,3.3vw,64px);font:inherit;font-size:clamp(18px,1.4vw,26px);font-weight:700;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);cursor:pointer;padding:0 10px}
+.abc button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.abc button:disabled{opacity:.3;cursor:default}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(150px,13vw,260px),1fr));gap:clamp(8px,.8vw,14px)}
+.tile{min-height:clamp(70px,7vw,120px);border:2px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);font:inherit;font-size:clamp(17px,1.45vw,26px);font-weight:700;line-height:1.2;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;text-align:left;gap:4px;touch-action:manipulation}
+.tile:active{transform:scale(.98)}
+.tile .sub{font-size:clamp(13px,.95vw,17px);font-weight:500;color:var(--muted)}
+.tile .got{font-size:clamp(13px,.95vw,17px);font-weight:700;color:var(--ok)}
+.tile.done{border-color:var(--ok)}
+.tile.cur{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--card))}
+.tHead{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+.tClientName{font-size:clamp(22px,2vw,34px);font-weight:800}
+.tBack,.tMore{font-size:clamp(16px,1.2vw,22px);padding:clamp(10px,.9vw,16px) clamp(14px,1.2vw,22px);border-radius:12px;font-weight:600}
+.tMore{margin-top:14px}
+.empty{color:var(--muted);padding:12px 0}
+/* lista trasy po prawej */
+.rClient{font-weight:800;font-size:clamp(16px,1.15vw,20px);color:var(--ink);margin:12px 0 4px}
+.rRow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:clamp(15px,1.05vw,19px);color:var(--ink)}
+.rRow .nm{flex:1;min-width:0}
+.rRow .q{font-weight:700;white-space:nowrap}
+.rRow button{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--bad);font-size:18px;cursor:pointer;flex:none}
+.rTotal{margin-top:10px;font-size:14px;color:var(--muted)}
+.sideBtns{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.sideBtns .pri{font-size:clamp(17px,1.25vw,22px);padding:clamp(12px,1vw,18px);border-radius:12px;font-weight:700}
+.sideBtns .row .btn{flex:1;font-size:clamp(14px,1vw,18px);padding:clamp(9px,.8vw,14px)}
+.trasaSide h2{font-size:clamp(17px,1.4vw,24px)}
+/* okno ilości z klawiaturą numeryczną */
+dialog#qDialog{border:1px solid var(--line);border-radius:18px;background:var(--card);color:var(--ink);padding:clamp(14px,1.4vw,26px);width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto}
+dialog#qDialog::backdrop{background:rgba(0,0,0,.5)}
+.qHead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}
+.qHead h2{font-size:clamp(22px,1.8vw,30px)}
+.qFields{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.qField{border:2px solid var(--line);border-radius:14px;padding:8px 12px;cursor:pointer;background:var(--bg)}
+.qField.on{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}
+.qField label{margin:0;font-size:14px}
+.qField input{border:0;background:transparent;padding:2px 0;font-size:clamp(30px,2.6vw,42px);font-weight:800;text-align:right}
+.qField input:focus{outline:none}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.pad button{height:clamp(58px,5vw,82px);font:inherit;font-size:clamp(24px,2vw,34px);font-weight:700;border:1px solid var(--line);border-radius:14px;background:var(--bg);color:var(--ink);cursor:pointer;touch-action:manipulation}
+.pad button:active{background:var(--line)}
+.qBtns{display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-top:6px}
+.qBtns .btn{font-size:clamp(18px,1.4vw,24px);padding:clamp(14px,1.2vw,20px);border-radius:14px;font-weight:700}
 dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
 </style>
 </head>
@@ -99,11 +154,30 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
 <!-- TRASA -->
 <section id="trasa" class="on">
   <div id="banner"></div>
+  <div class="trasaGrid">
+  <div class="trasaMain">
+  <!-- wybór dotykiem: klient -> asortyment -> ilość -->
+  <div class="card touch">
+    <div id="tClientStep">
+      <h2 class="tStep">1. Wybierz klienta</h2>
+      <div class="abc" id="tAbc"></div>
+      <div class="tiles" id="tClients"></div>
+    </div>
+    <div id="tItemStep" hidden>
+      <div class="tHead">
+        <button class="btn tBack" id="tBack">‹ Inny klient</button>
+        <div class="tClientName" id="tClientName"></div>
+      </div>
+      <div class="geo" id="clientGeo" hidden></div>
+      <h2 class="tStep">2. Wybierz asortyment</h2>
+      <div class="tiles" id="tItems"></div>
+      <button class="btn tMore" id="tAllItems" hidden></button>
+    </div>
+  </div>
   <div class="card">
-    <button id="mic" class="big">🎤 Rozpocznij trasę</button>
+    <button id="mic" class="big">🎤 Rozpocznij trasę głosem</button>
     <div class="state" id="state">Naciśnij przycisk i podaj nazwę klienta.</div>
     <div class="current" id="current"></div>
-    <div class="geo" id="clientGeo" hidden></div>
     <div class="heard" id="heard"></div>
     <div class="row" style="margin-top:10px">
       <input id="typed" placeholder="Albo wpisz to, co byś powiedział…" style="flex:1">
@@ -112,20 +186,40 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
     <p class="small" style="margin:8px 0 0">Komendy: <b>„następny klient”</b>, <b>„cofnij”</b>, <b>„koniec trasy”</b>. Przykład: „prześcieradła 20”, „ręczniki 15, poszewki 30”, „pościel 12,5 kilo”, „ręczniki 20 sztuk 8 kilo”.</p>
     <div class="log" id="log"></div>
   </div>
-  <div class="card">
-    <h2>Bieżąca trasa</h2>
-    <div id="summary" class="small">Brak wpisów.</div>
-    <div class="row" style="margin-top:10px">
-      <button class="btn pri" id="sendNow">Koniec trasy – wyślij mail</button>
-      <button class="btn" id="copySum">Kopiuj podsumowanie</button>
-      <button class="btn del" id="clearRoute">Wyczyść trasę</button>
-    </div>
-  </div>
   <div class="card adminOnly" style="display:none">
     <div class="row" style="justify-content:space-between"><h2>Ostatnie trasy (wszyscy pracownicy)</h2><button class="btn" id="histRefresh">Odśwież</button></div>
     <ul class="list" id="history"></ul>
   </div>
+  </div>
+  <aside class="trasaSide">
+  <div class="card">
+    <h2>Bieżąca trasa</h2>
+    <div id="summary" class="small">Brak wpisów.</div>
+    <div class="sideBtns">
+      <button class="btn pri" id="sendNow">Koniec trasy – wyślij mail</button>
+      <div class="row">
+        <button class="btn" id="copySum">Kopiuj podsumowanie</button>
+        <button class="btn del" id="clearRoute">Wyczyść trasę</button>
+      </div>
+    </div>
+  </div>
+  </aside>
+  </div>
 </section>
+
+<dialog id="qDialog" aria-labelledby="qTitle">
+  <div class="qHead">
+    <div><div class="small" id="qClient"></div><h2 id="qTitle" style="margin:0"></h2></div>
+    <button class="btn" id="qClose" aria-label="Zamknij">✕</button>
+  </div>
+  <div class="qFields" id="qFields"></div>
+  <div class="pad" id="qPad"></div>
+  <p class="bad" id="qErr" style="min-height:22px;margin:8px 0 0"></p>
+  <div class="qBtns">
+    <button class="btn" id="qCancel">Anuluj</button>
+    <button class="btn pri" id="qOk">Dodaj do trasy</button>
+  </div>
+</dialog>
 
 <!-- KLIENCI -->
 <section id="klienci">
