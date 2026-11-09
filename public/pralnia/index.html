@@ -109,6 +109,22 @@ main:has(#trasa.on){max-width:1800px}
 .tBack,.tMore{font-size:clamp(16px,1.2vw,22px);padding:clamp(10px,.9vw,16px) clamp(14px,1.2vw,22px);border-radius:12px;font-weight:600}
 .tMore{margin-top:14px}
 .empty{color:var(--muted);padding:12px 0}
+/* do odebrania */
+.pickups h2 span{color:var(--bad)}
+.pkAdd[hidden]{display:none}
+.pkAdd{display:grid;gap:8px;margin:12px 0;padding:12px;border:1px dashed var(--line);border-radius:12px}
+.pkAdd select,.pkAdd input{font-size:clamp(16px,1.2vw,20px);padding:12px}
+.pk{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--line)}
+.pk:last-child{border-bottom:0}
+.pk .who{flex:1;min-width:220px}
+.pk .who b{font-size:clamp(18px,1.5vw,26px)}
+.pk .who .msg{font-style:italic;margin-top:2px;font-size:clamp(14px,1vw,18px)}
+.pk .acts{display:flex;gap:8px;flex-wrap:wrap}
+.pk .acts .btn,.pk .acts select{font-size:clamp(15px,1.1vw,20px);padding:clamp(10px,.9vw,14px) clamp(12px,1vw,18px);border-radius:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center}
+.pk .acts .ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.pk.done{opacity:.6}
+.pk.new{animation:p 1.2s 4}
+.pkEmpty{color:var(--muted);padding:8px 0 2px}
 /* lista trasy po prawej */
 .rClient{font-weight:800;font-size:clamp(16px,1.15vw,20px);color:var(--ink);margin:12px 0 4px}
 .rRow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:clamp(15px,1.05vw,19px);color:var(--ink)}
@@ -156,6 +172,20 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
   <div id="banner"></div>
   <div class="trasaGrid">
   <div class="trasaMain">
+  <!-- zgłoszenia odbioru prania: SMS od klienta albo dodane ręcznie -->
+  <div class="card pickups" id="pickups">
+    <div class="row" style="justify-content:space-between">
+      <h2 class="tStep" style="margin:0">📞 Do odebrania <span id="pkCount"></span></h2>
+      <button class="btn tBack" id="pkAddOpen">+ Dodaj zgłoszenie</button>
+    </div>
+    <div id="pkAdd" class="pkAdd" hidden>
+      <select id="pkClient"></select>
+      <input id="pkMsg" placeholder="Uwagi (opcjonalnie), np. 3 worki, po 12:00">
+      <div class="row"><button class="btn pri tBack" id="pkAddGo">Dodaj</button><button class="btn tBack" id="pkAddCancel">Anuluj</button></div>
+    </div>
+    <div id="pkList"></div>
+    <details id="pkDoneBox" hidden><summary class="small">Odebrane w ostatniej dobie (<span id="pkDoneCount"></span>)</summary><div id="pkDone"></div></details>
+  </div>
   <!-- wybór dotykiem: klient -> asortyment -> ilość -->
   <div class="card touch">
     <div id="tClientStep">
@@ -227,6 +257,7 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
     <h2>Dodaj klienta</h2>
     <label>Nazwa</label><input id="cName" placeholder="np. Hotel Pod Lipami">
     <label>Inne nazwy, po przecinku (jak pracownik może go nazywać)</label><input id="cAlias" placeholder="np. pod lipami, lipy">
+    <label>Telefony, po przecinku (z nich klient wysyła SMS o odbiór prania)</label><input id="cPhone" inputmode="tel" placeholder="np. 600 100 200, 13 43 00 000">
     <div class="row" style="margin-top:10px"><button class="btn pri" id="cAdd">Dodaj</button></div>
   </div>
   <p class="small" id="cSync"></p>

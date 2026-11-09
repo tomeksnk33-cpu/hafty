@@ -31,7 +31,8 @@ export const config = {
     // (logo w brand/ widać już na ekranie logowania).
     // Manifest i ikony trasy pralni przeglądarka pobiera bez ciasteczka, przy
     // dodawaniu aplikacji do ekranu głównego. Codzienny raport rejestratora
-    // wywołuje Vercel Cron, też bez ciasteczka.
-    "/((?!login|_next/static|_next/image|uploads/|brand/|favicon.ico|pralnia/manifest\\.webmanifest|pralnia/icon|api/rejestrator/cron).*)",
+    // wywołuje Vercel Cron, też bez ciasteczka. SMS-y od klientów pralni
+    // przekazuje bramka SMS (chroni je klucz w adresie, api/pralnia/sms).
+    "/((?!login|_next/static|_next/image|uploads/|brand/|favicon.ico|pralnia/manifest\\.webmanifest|pralnia/icon|api/rejestrator/cron|api/pralnia/sms).*)",
   ],
 };
