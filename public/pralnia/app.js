@@ -5,7 +5,8 @@
 // The worker is identified by their login session, the same account as in the embroidery app.
 const KEY = "pralnia-trasa-v3";
 const local = (() => {
-  const d = { worker: "", repeat: true, catalog: { clients: [], items: [] }, route: [], routeId: null, pending: [] };
+  // route/routeId: wyprane pranie wpisywane na magazyn; drv: trasa kierowcy (wybrana trasa i to, co zabiera z magazynu)
+  const d = { worker: "", repeat: true, catalog: { clients: [], items: [], lines: [] }, route: [], routeId: null, pending: [], drv: { line: "", route: [], routeId: null } };
   try { return Object.assign(d, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { return d; }
 })();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(local)); } catch (e) {} };
@@ -37,9 +38,9 @@ async function api(path, opts = {}) {
 async function loadCatalog() {
   try {
     const d = await api("katalog");
-    local.catalog = { clients: d.clients, items: d.items };
-    if (d.user) { local.worker = d.user.name; local.isAdmin = !!d.user.isAdmin; local.canManage = !!(d.user.canManage ?? d.user.isAdmin); showAdmin(); }
-    save(); ui();
+    local.catalog = { clients: d.clients, items: d.items, lines: d.lines || [] };
+    if (d.user) { local.worker = d.user.name; local.isAdmin = !!d.user.isAdmin; local.canManage = !!(d.user.canManage ?? d.user.isAdmin); local.canDrive = !!(d.user.canDrive ?? d.user.isAdmin); showAdmin(true); }
+    save(); ui(); renderDrive(); renderLines();
     $("#cSync").textContent = "Baza wspólna dla wszystkich pracowników. Zsynchronizowano " + new Date().toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }) + ".";
     return true;
   } catch (e) {
@@ -193,7 +194,7 @@ function setupRec() {
 // ---------- dialogue ----------
 function log(msg, cls = "") { const d = document.createElement("div"); d.className = cls; d.textContent = new Date().toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }) + "  " + msg; $("#log").prepend(d); }
 function ui() {
-  $("#mic").textContent = running ? "⏹ Zatrzymaj słuchanie" : "🎤 Rozpocznij trasę głosem";
+  $("#mic").textContent = running ? "⏹ Zatrzymaj słuchanie" : "🎤 Wpisuj głosem";
   $("#mic").classList.toggle("stop", running);
   $("#mic").classList.toggle("pulse", running);
   $("#state").innerHTML = mode === "client" ? "Czekam na <b>nazwę klienta</b>" : "Klient: podaj <b>asortyment i ilość</b>";
@@ -208,7 +209,7 @@ async function handle(alts) {
   const text = alts[0]; const t = norm(text);
   if (!t) return;
   $("#heard").textContent = "„" + text + "”";
-  if (/koniec trasy|koniec tras|zakoncz trase/.test(t)) { log("Koniec trasy", "ok"); await finishRoute(true); return; }
+  if (/koniec trasy|koniec tras|zakoncz trase|^zapisz|zapisz na magazyn|koniec wpisu/.test(t)) { log("Zapis na magazyn", "ok"); await finishRoute(true); return; }
   if (/^(cofnij|usun ostatni)/.test(t)) {
     const last = local.route.pop(); save(); ui();
     if (last) { log("Cofnięto: " + last.client + " – " + last.item + " " + fmtEntry(last), "warn"); await say("Cofnięto"); } else await say("Nie ma czego cofnąć");
@@ -320,7 +321,7 @@ function renderSummary() {
   $("#summary").innerHTML = h;
   $("#summary").querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
     const r = local.route[+b.dataset.del]; if (!r) return;
-    if (!confirm(`Usunąć z trasy: ${r.client} – ${r.item} ${fmtEntry(r)}?`)) return;
+    if (!confirm(`Usunąć z listy: ${r.client} – ${r.item} ${fmtEntry(r)}?`)) return;
     local.route.splice(+b.dataset.del, 1); if (!local.route.length) local.routeId = null;
     save(); log("Usunięto: " + r.client + " – " + r.item + " " + fmtEntry(r), "warn"); ui();
   });
@@ -332,32 +333,36 @@ function renderBanner() {
     return;
   }
   if (loggedOut) {
-    const waiting = local.pending.length ? " Niewysłane trasy czekają w telefonie i wyślą się po zalogowaniu." : "";
+    const waiting = local.pending.length ? " Niewysłane wpisy czekają na tym urządzeniu i wyślą się po zalogowaniu." : "";
     b.innerHTML = `<div class="banner err">Sesja wygasła. <a href="/login?powrot=/pralnia">Zaloguj się ponownie</a>.${waiting}</div>`;
     return;
   }
   if (local.pending.length) {
-    b.innerHTML = `<div class="banner err">${local.pending.length === 1 ? "1 trasa czeka" : local.pending.length + " trasy czekają"} na wysłanie (brak zasięgu lub błąd poczty). <button class="btn" id="retry">Wyślij teraz</button></div>`;
+    const n = local.pending.length;
+    b.innerHTML = `<div class="banner err">${n === 1 ? "1 wpis czeka" : n + (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? " wpisy czekają" : " wpisów czeka")} na wysłanie (brak zasięgu lub błąd poczty). <button class="btn" id="retry">Wyślij teraz</button></div>`;
     $("#retry").onclick = () => flushPending(true);
     return;
   }
   b.innerHTML = "";
 }
-// send queued routes; returns true if everything went out
+// wysyła zaległe wpisy (partie na magazyn i trasy kierowcy); true, gdy wszystko poszło
 async function flushPending(verbose) {
   let ok = true;
   for (const p of [...local.pending]) {
     try {
-      await api("trasy", { method: "POST", body: p });
+      if (p.kind === "magazyn") await api("magazyn", { method: "POST", body: { id: p.id, entries: p.route } });
+      else await api("trasy", { method: "POST", body: p });
       local.pending = local.pending.filter(x => x.id !== p.id); save();
-      log("Wysłano podsumowanie trasy", "ok");
+      log(p.kind === "magazyn" ? "Zapisano na magazynie" : "Wysłano podsumowanie trasy", "ok");
     } catch (e) {
       ok = false;
       if (e.status === 400) { local.pending = local.pending.filter(x => x.id !== p.id); save(); }
+      // trasa zapisana, nie poszedł tylko mail — pranie już zeszło z magazynu na serwerze
+      if (e.data?.saved && !p.saved) { p.saved = true; save(); }
       if (verbose) log("Nie wysłano: " + e.message, "bad");
     }
   }
-  renderBanner(); loadHistory();
+  renderBanner(); loadHistory(); loadStock();
   return ok;
 }
 // model telefonu (Chrome na Androidzie podaje go tylko przez userAgentData)
@@ -369,15 +374,16 @@ async function deviceHints() {
     return { model: v.model || undefined, platform: v.platform || undefined, platformVersion: v.platformVersion || undefined };
   } catch (e) { return undefined; }
 }
+const plain = list => list.map(({ client, item, qty, unit, kg }) => ({ client, item, qty, unit: unit || "szt", ...(unit === "szt_kg" ? { kg } : {}) }));
+// zapis wypranego prania na magazyn
 async function finishRoute(spoken) {
-  if (!local.route.length) { if (spoken) await say("Trasa jest pusta"); else alert("Trasa jest pusta."); return; }
-  if (!spoken && !confirm("Zakończyć trasę i wysłać podsumowanie?")) return;
+  if (!local.route.length) { if (spoken) await say("Lista jest pusta"); else alert("Lista jest pusta."); return; }
+  if (!spoken && !confirm("Zapisać wyprane pranie na magazyn?")) return;
   stop();
-  const device = await deviceHints();
-  local.pending.push({ id: local.routeId || newId(), worker: local.worker, date: new Date().toISOString(), device, route: local.route.map(({ client, item, qty, unit, kg }) => ({ client, item, qty, unit: unit || "szt", ...(unit === "szt_kg" ? { kg } : {}) })) });
+  local.pending.push({ kind: "magazyn", id: local.routeId || newId(), date: new Date().toISOString(), route: plain(local.route) });
   local.route = []; local.routeId = null; mode = "client"; currentClient = null; save(); ui();
   const ok = await flushPending(true);
-  const msg = ok ? "Koniec trasy. Podsumowanie wysłane." : "Koniec trasy. Nie udało się wysłać, spróbuję ponownie.";
+  const msg = ok ? "Zapisano na magazynie." : "Nie udało się zapisać, spróbuję ponownie.";
   if (spoken) await say(msg, { thenListen: false }); else log(msg, ok ? "ok" : "bad");
 }
 // usunięcie całej trasy (np. testowej) — tylko administrator
@@ -398,7 +404,7 @@ async function loadHistory() {
   ul.innerHTML = list.length ? "" : "<li class='small'>Brak.</li>";
   for (const h of list) {
     const li = document.createElement("li");
-    li.innerHTML = `<span>${new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })} · <b>${esc(h.worker || "—")}</b><br><span class='small'>${h.clients} klientów${h.total ? ", " + fmtQty(h.total, "szt") : ""}${h.totalKg ? ", " + fmtQty(h.totalKg, "kg") : ""} ${h.mailedAt ? "· mail wysłany" : "· <span class='bad'>mail niewysłany</span>"}</span></span><span class='row'><button class='btn' data-r>Wyślij ponownie</button>${local.isAdmin ? "<button class='btn del' data-x>Usuń</button>" : ""}</span>`;
+    li.innerHTML = `<span>${new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })} · <b>${esc(h.worker || "—")}</b>${h.line ? " · trasa " + esc(h.line) : ""}<br><span class='small'>${h.clients} klientów${h.total ? ", " + fmtQty(h.total, "szt") : ""}${h.totalKg ? ", " + fmtQty(h.totalKg, "kg") : ""} ${h.mailedAt ? "· mail wysłany" : "· <span class='bad'>mail niewysłany</span>"}</span></span><span class='row'><button class='btn' data-r>Wyślij ponownie</button>${local.isAdmin ? "<button class='btn del' data-x>Usuń</button>" : ""}</span>`;
     if (local.isAdmin) li.querySelector("[data-x]").onclick = () => deleteRoute(h.id, new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" }) + " · " + (h.worker || "—"));
     li.querySelector("[data-r]").onclick = async () => {
       try { await api("trasy", { method: "POST", body: { id: h.id, resend: true } }); alert("Wysłano ponownie."); }
@@ -421,8 +427,8 @@ $("#mic").onclick = () => running ? stop() : start();
 $("#typedGo").onclick = () => { const v = $("#typed").value.trim(); if (v) { $("#typed").value = ""; handle(v); } };
 $("#typed").onkeydown = e => { if (e.key === "Enter") $("#typedGo").click(); };
 $("#sendNow").onclick = () => finishRoute(false);
-$("#copySum").onclick = () => { navigator.clipboard?.writeText(summaryText(local.route)); log("Skopiowano podsumowanie"); };
-$("#clearRoute").onclick = () => { if (confirm("Usunąć wszystkie wpisy bieżącej trasy?")) { local.route = []; local.routeId = null; mode = "client"; currentClient = null; save(); ui(); } };
+$("#copySum").onclick = () => { navigator.clipboard?.writeText(summaryText(local.route)); log("Skopiowano listę"); };
+$("#clearRoute").onclick = () => { if (confirm("Usunąć wszystkie wpisy z listy?")) { local.route = []; local.routeId = null; mode = "client"; currentClient = null; save(); ui(); } };
 $("#histRefresh").onclick = loadHistory;
 
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
@@ -431,6 +437,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   if (b.dataset.tab === "klienci" || b.dataset.tab === "asort") loadCatalog();
   if (b.dataset.tab === "grafik") loadGrafik();
   if (b.dataset.tab === "cennik") loadCennik();
+  if (b.dataset.tab === "magazyn" || b.dataset.tab === "trasa") { loadStock(); loadPickups(); }
 });
 
 // ---------- geolokalizacja klientów ----------
@@ -480,9 +487,10 @@ async function clearLocation(clientId) {
 }
 const geoButton = (id, has) => `<button class='btn' data-g ${geoBusy.has(id) ? "disabled" : ""}>${geoBusy.has(id) ? "⏳ Ustalam położenie…" : has ? "📍 Pobierz ponownie" : "📍 Pobierz dane geolokalizacji"}</button>`;
 // w zakładce Trasa: lokalizacja klienta, którego właśnie podano
+// lokalizację zapisuje kierowca u klienta (na ekranie trasy, po wybraniu klienta)
 function renderClientGeo() {
-  const box = $("#clientGeo");
-  const c = currentClient && cat().clients.find(x => x.id === currentClient.id);
+  const box = $("#dGeo");
+  const c = drv.client && cat().clients.find(x => x.id === drv.client.id);
   box.hidden = !c;
   if (!c) { box.innerHTML = ""; return; }
   box.innerHTML = geoButton(c.id, !!c.location) + `<span class='small'>${c.location ? locText(c.location) : "Brak zapisanej lokalizacji."}</span>`;
@@ -499,10 +507,12 @@ function renderList(kind) {
     const li = document.createElement("li");
     const unitBtn = kind === "a" ? `<button class='btn' data-u title='Zmień jednostkę'>${unitShort(unitOfItem(x))}</button>` : "";
     const geo = kind === "c" ? `<br><span class='small'>📞 ${x.phones?.length ? x.phones.map(fmtPhone).map(esc).join(", ") : "brak telefonu"}</span><br><span class='small'>${x.location ? locText(x.location) : "📍 brak lokalizacji"}</span>` : "";
-    const geoBtns = kind === "c" ? geoButton(x.id, !!x.location) + (x.location ? "<button class='btn del' data-gx>Usuń lokalizację</button>" : "") : "";
+    const geoBtns = kind === "c" ? `<select data-line title='Trasa kierowcy'>${lineOptions(x.lineId)}</select>` + geoButton(x.id, !!x.location) + (x.location ? "<button class='btn del' data-gx>Usuń lokalizację</button>" : "") : "";
     li.innerHTML = `<span><b>${esc(x.name)}</b>${kind === "a" ? ` <span class='small'>· liczone w ${unitLabel(unitOfItem(x))}</span>` : ""}${x.aliases?.length ? `<br><span class='small'>${esc(x.aliases.join(", "))}</span>` : ""}${geo}</span><span class='row' style='justify-content:flex-end'>${geoBtns}${unitBtn}<button class='btn' data-e>Edytuj</button><button class='btn del' data-d>Usuń</button></span>`;
     const gb = li.querySelector("[data-g]"); if (gb) gb.onclick = () => captureLocation(x.id);
     const gx = li.querySelector("[data-gx]"); if (gx) gx.onclick = () => clearLocation(x.id);
+    const ls = li.querySelector("[data-line]");
+    if (ls) ls.onchange = () => changeCatalog({ method: "PUT", body: { id: x.id, name: x.name, aliases: x.aliases || [], lineId: ls.value || null } });
     const ub = li.querySelector("[data-u]");
     if (ub) ub.onclick = () => {
       // szt. -> kg -> szt.+kg -> szt.
@@ -532,7 +542,7 @@ function addFrom(kind) {
   const aliases = $("#" + kind + "Alias").value.split(",").map(s => s.trim()).filter(Boolean);
   const body = { kind: listKey(kind), name: n, aliases };
   if (kind === "a") body.unit = $("#aUnit").value;
-  if (kind === "c") { body.phones = splitList($("#cPhone").value); $("#cPhone").value = ""; }
+  if (kind === "c") { body.phones = splitList($("#cPhone").value); $("#cPhone").value = ""; body.lineId = $("#cLine").value || null; }
   changeCatalog({ method: "POST", body });
   $("#" + kind + "Name").value = ""; $("#" + kind + "Alias").value = "";
 }
@@ -545,12 +555,19 @@ $("#sRepeat").onchange = e => { local.repeat = e.target.checked; save(); };
 // ---------- grafik klientów (administrator) ----------
 // Zwykły pracownik tylko zapisuje trasę. Kierownik pralni dodatkowo prowadzi klientów,
 // asortyment, historię i grafik (bez cen). Cennik i wartości widzi tylko administrator.
-function showAdmin() {
+let firstShow = true;
+// fresh: uprawnienia właśnie przyszły z serwera (a nie z pamięci urządzenia)
+function showAdmin(fresh = false) {
   $("#navGrafik").style.display = local.canManage ? "" : "none";
   document.querySelectorAll(".managerOnly").forEach(el => { el.style.display = local.canManage ? "" : "none"; });
   document.querySelectorAll(".adminOnly").forEach(el => { el.style.display = local.isAdmin ? "" : "none"; });
+  document.querySelectorAll(".driverOnly").forEach(el => { el.style.display = local.canDrive ? "" : "none"; });
   const on = document.querySelector("nav button.on");
-  if (on && on.style.display === "none") document.querySelector("nav button[data-tab=trasa]").click();
+  if (on && on.style.display === "none") document.querySelector("nav button[data-tab=magazyn]").click();
+  // sam kierowca (bez kierowania pralnią) zaczyna od trasy
+  if (!fresh || !firstShow) return;
+  firstShow = false;
+  if (local.canDrive && !local.canManage && on?.dataset.tab === "magazyn") document.querySelector("nav button[data-tab=trasa]").click();
 }
 const dk = d => { const x = new Date(d); return x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0"); };
 const g = { year: new Date().getFullYear(), month: new Date().getMonth(), rows: [], client: "", selected: dk(new Date()) };
@@ -837,7 +854,9 @@ async function loadPickups() {
   if (fresh.length) log("Nowe zgłoszenie odbioru prania (" + fresh.length + ")", "warn");
 }
 function renderPickups(fresh = new Set()) {
-  const open = pick.list.filter(p => !p.doneAt), done = pick.list.filter(p => p.doneAt).reverse();
+  // kierowca widzi zgłoszenia klientów ze swojej trasy (i z nieznanych numerów)
+  const onLine = p => { const c = p.clientId && cat().clients.find(x => x.id === p.clientId); return !c || inLine(c, drv.line()); };
+  const open = pick.list.filter(p => !p.doneAt && onLine(p)), done = pick.list.filter(p => p.doneAt && onLine(p)).reverse();
   $("#pkCount").textContent = open.length ? "(" + open.length + ")" : "";
   const row = p => {
     const c = p.clientId && cat().clients.find(x => x.id === p.clientId);
@@ -849,7 +868,7 @@ function renderPickups(fresh = new Set()) {
       ? `<button class='btn' data-undo>Cofnij</button>`
       : (c?.location ? `<a class='btn' href='${navUrl(c.location)}' target='_blank' rel='noopener'>🧭 Nawiguj</a>` : "") +
         (phone ? `<a class='btn' href='tel:${esc(phone)}'>📞 Zadzwoń</a>` : "") +
-        (c ? `<button class='btn' data-pick>Wpisz pranie</button>` : `<select data-assign><option value=''>Przypisz do klienta…</option>${[...cat().clients].sort((a, b) => a.name.localeCompare(b.name, "pl")).map(x => `<option value='${esc(x.id)}'>${esc(x.name)}</option>`).join("")}</select>`) +
+        (c ? `<button class='btn' data-pick>Wydaj pranie</button>` : `<select data-assign><option value=''>Przypisz do klienta…</option>${[...cat().clients].sort((a, b) => a.name.localeCompare(b.name, "pl")).map(x => `<option value='${esc(x.id)}'>${esc(x.name)}</option>`).join("")}</select>`) +
         `<button class='btn ok' data-done>✓ Odebrane</button>`;
     return `<div class='pk${p.doneAt ? " done" : ""}${fresh.has(p.id) ? " new" : ""}' data-id='${esc(p.id)}'><div class='who'><b>${esc(who)}</b><div class='small'>${esc(meta)}</div>${p.message ? `<div class='msg'>„${esc(p.message)}”</div>` : ""}</div><div class='acts'>${acts}${local.isAdmin ? "<button class='btn del' data-x title='Usuń zgłoszenie'>✕</button>" : ""}</div></div>`;
   };
@@ -861,7 +880,7 @@ function renderPickups(fresh = new Set()) {
     const on = (sel, fn) => { const b = el.querySelector(sel); if (b) b.onclick = fn; };
     on("[data-done]", () => patchPickup(p, { done: true }));
     on("[data-undo]", () => patchPickup(p, { done: false }));
-    on("[data-pick]", () => { const c = cat().clients.find(x => x.id === p.clientId); if (c) pickClient(c); });
+    on("[data-pick]", () => { const c = cat().clients.find(x => x.id === p.clientId); if (c) drvPick(c); });
     on("[data-x]", async () => { if (!confirm("Usunąć to zgłoszenie?")) return; try { await api("odbiory?id=" + encodeURIComponent(p.id), { method: "DELETE" }); } catch (e) { alert(e.message); } loadPickups(); });
     const sel = el.querySelector("[data-assign]");
     if (sel) sel.onchange = async () => {
@@ -920,10 +939,11 @@ function renderTouchClients() {
   const box = $("#tClients"); box.innerHTML = "";
   if (!list.length) { box.innerHTML = `<div class='empty'>${cat().clients.length ? "Brak klientów na tę literę." : "Brak klientów. Administrator dodaje ich w zakładce Klienci."}</div>`; return; }
   const inRoute = new Set(local.route.map(r => r.client));
+  // kafelek pokazuje, ile tras miał klient
   for (const c of list) {
     const b = document.createElement("button");
     b.className = "tile" + (inRoute.has(c.name) ? " done" : "");
-    b.innerHTML = `<span>${esc(c.name)}</span>` + (inRoute.has(c.name) ? `<span class='got'>✓ już w tej trasie</span>` : c.visits ? `<span class='sub'>${c.visits} ${c.visits === 1 ? "trasa" : c.visits % 10 >= 2 && c.visits % 10 <= 4 && (c.visits % 100 < 12 || c.visits % 100 > 14) ? "trasy" : "tras"}</span>` : "");
+    b.innerHTML = `<span>${esc(c.name)}</span>` + (inRoute.has(c.name) ? `<span class='got'>✓ już wpisane</span>` : c.visits ? `<span class='sub'>${c.visits} ${c.visits === 1 ? "trasa" : c.visits % 10 >= 2 && c.visits % 10 <= 4 && (c.visits % 100 < 12 || c.visits % 100 > 14) ? "trasy" : "tras"}</span>` : "");
     b.onclick = () => pickClient(c);
     box.append(b);
   }
@@ -956,15 +976,20 @@ $("#tBack").onclick = () => { mode = "client"; currentClient = null; log("Nastę
 $("#tAllItems").onclick = () => { touch.allItems = !touch.allItems; renderTouch(); };
 
 // okno ilości: duża klawiatura numeryczna; dla „szt.+kg” dwa pola
-const q = { client: null, item: null, fields: [], active: "" };
+// opts: { max: {qty, kg} – najwyżej tyle (stan magazynu), fill: wartości na start, ok: napis przycisku, onAdd(entry) }
+const q = { client: null, item: null, fields: [], active: "", opts: {} };
 const FIELD = { szt: "Sztuki", kg: "Kilogramy" };
-function openQty(c, it) {
+const numTxt = n => String(n).replace(".", ",");
+function openQty(c, it, opts = {}) {
   const u = unitOfItem(it);
-  Object.assign(q, { client: c, item: it, fields: u === "szt_kg" ? ["szt", "kg"] : [u], active: u === "kg" ? "kg" : "szt" });
+  Object.assign(q, { client: c, item: it, opts, fields: u === "szt_kg" ? ["szt", "kg"] : [u], active: u === "kg" ? "kg" : "szt" });
+  $("#qOk").textContent = opts.ok || "Dodaj";
   $("#qClient").textContent = c.name;
   $("#qTitle").textContent = it.name;
   $("#qErr").textContent = "";
-  $("#qFields").innerHTML = q.fields.map(f => `<div class='qField' data-f='${f}'><label for='q_${f}'>${FIELD[f]}</label><input id='q_${f}' inputmode='none' autocomplete='off' placeholder='0'></div>`).join("");
+  const fill = f => { const v = opts.fill && (f === "kg" && u === "szt_kg" ? opts.fill.kg : opts.fill.qty); return v ? numTxt(v) : ""; };
+  const maxTxt = f => { if (!opts.max) return ""; const v = f === "kg" && u === "szt_kg" ? opts.max.kg : opts.max.qty; return ` <span class='small'>(w magazynie ${fmtNum(v)})</span>`; };
+  $("#qFields").innerHTML = q.fields.map(f => `<div class='qField' data-f='${f}'><label for='q_${f}'>${FIELD[f]}${maxTxt(f)}</label><input id='q_${f}' inputmode='none' autocomplete='off' placeholder='0' value='${fill(f)}'></div>`).join("");
   $("#qFields").querySelectorAll(".qField").forEach(el => {
     const f = el.dataset.f, inp = el.querySelector("input");
     el.onclick = () => { q.active = f; markQ(); };
@@ -974,7 +999,7 @@ function openQty(c, it) {
   });
   markQ();
   $("#qDialog").showModal();
-  qInput(q.active).focus(); // inputmode=none: bez klawiatury ekranowej systemu, ale działa zwykła klawiatura
+  const first = qInput(q.active); first.focus(); first.select?.(); // inputmode=none: bez klawiatury ekranowej systemu, ale działa zwykła klawiatura
 }
 // sztuki tylko całe, kilogramy z przecinkiem (najwyżej 2 miejsca)
 function cleanNum(v, f) {
@@ -1012,6 +1037,11 @@ function addFromQty() {
     if (!n) { $("#qErr").textContent = u === "kg" ? "Podaj kilogramy." : "Podaj liczbę sztuk."; return; }
     e = { unit: u, qty: n };
   }
+  if (q.opts.max) {
+    const over = e.qty > q.opts.max.qty + 1e-9 ? (u === "kg" ? "kilogramów" : "sztuk") : u === "szt_kg" && e.kg > q.opts.max.kg + 1e-9 ? "kilogramów" : "";
+    if (over) { $("#qErr").textContent = `W magazynie nie ma tylu ${over}.`; return; }
+  }
+  if (q.opts.onAdd) { q.opts.onAdd(e); $("#qDialog").close(); return; }
   if (!local.routeId) local.routeId = newId();
   const entry = { client: q.client.name, item: q.item.name, ...e, t: Date.now() };
   local.route.push(entry); save();
@@ -1021,7 +1051,237 @@ function addFromQty() {
 $("#qOk").onclick = addFromQty;
 $("#qCancel").onclick = $("#qClose").onclick = () => $("#qDialog").close();
 
+// ---------- magazyn czystego prania ----------
+// Pracownik pralni zapisuje wyprane pranie (lista po prawej -> „Zapisz na magazyn”),
+// kierowca zabiera je trasą. Stan liczy serwer; kierownik może poprawić pozycję.
+const st = { stock: [], recent: [] };
+async function loadStock() {
+  try { const d = await api("magazyn"); st.stock = d.stock || []; st.recent = d.recent || []; } catch (e) { return; }
+  renderStock(); renderDrive();
+}
+const skey = (client, item, unit) => client + "\u0000" + item + "\u0000" + (unit || "szt");
+const lineOfClient = name => { const c = cat().clients.find(x => x.name === name); return c && c.lineId ? lineName(c.lineId) : ""; };
+function renderStock() {
+  const by = new Map();
+  st.stock.forEach((s, i) => { if (!by.has(s.client)) by.set(s.client, []); by.get(s.client).push(i); });
+  $("#stCount").textContent = by.size ? `(${by.size} ${by.size === 1 ? "klient" : "klientów"})` : "";
+  if (!by.size) $("#stList").innerHTML = "<p class='small'>Magazyn jest pusty.</p>";
+  else {
+    let h = "<table>";
+    for (const [c, idx] of by) {
+      const ln = lineOfClient(c);
+      h += `<tr><th colspan=3>${esc(c)}${ln ? ` <span class='small'>· trasa ${esc(ln)}</span>` : ""}</th></tr>`;
+      for (const i of idx) {
+        const s = st.stock[i], neg = s.qty < 0 || s.kg < 0;
+        h += `<tr><td>${esc(s.item)}</td><td class='n${neg ? " bad" : ""}'><b>${fmtEntry(s)}</b></td><td class='n'>${local.canManage ? `<button class='btn' data-fix='${i}'>Popraw</button>` : ""}</td></tr>`;
+      }
+    }
+    $("#stList").innerHTML = h + "</table>";
+    $("#stList").querySelectorAll("[data-fix]").forEach(b => b.onclick = () => fixStock(st.stock[+b.dataset.fix]));
+  }
+  $("#stRecent").innerHTML = st.recent.length ? "<table>" + st.recent.map(m => `<tr><td class='small'>${esc(whenText(m.date))} · ${esc(m.worker)}${m.kind === "korekta" ? " · korekta" : ""}</td><td>${esc(m.client)}</td><td>${esc(m.item)}</td><td class='n'>${fmtEntry(m)}</td></tr>`).join("") + "</table>" : "<p class='small'>Brak.</p>";
+}
+// korekta: kierownik podaje, ile faktycznie jest
+async function fixStock(s) {
+  const pcs = s.unit === "kg" ? "kilogramów" : "sztuk";
+  const a = prompt(`${s.client} – ${s.item}\nIle ${pcs} jest naprawdę w magazynie? (teraz ${fmtNum(s.qty)})`, String(Math.max(0, s.qty)).replace(".", ","));
+  if (a === null) return;
+  const body = { client: s.client, item: s.item, unit: s.unit, qty: Number(a.replace(",", ".")) };
+  if (s.unit === "szt_kg") {
+    const k = prompt(`Ile kilogramów? (teraz ${fmtNum(s.kg)})`, String(Math.max(0, s.kg)).replace(".", ","));
+    if (k === null) return;
+    body.kg = Number(k.replace(",", "."));
+  }
+  if (!(body.qty >= 0) || (body.kg !== undefined && !(body.kg >= 0))) { alert("Podaj liczbę 0 lub większą."); return; }
+  try { await api("magazyn", { method: "PATCH", body }); } catch (e) { alert("Nie zapisano: " + e.message); }
+  loadStock();
+}
+$("#stRefresh").onclick = loadStock;
+
+// ---------- trasa kierowcy ----------
+// 1. trasa (np. „Sanok”) -> 2. klienci tej trasy: pranie w magazynie i zgłoszenia „do odebrania”
+// -> 3. pranie klienta z magazynu (ilość podpowiada stan) -> koniec trasy: mail i zdjęcie z magazynu.
+const ALL = "*", NONE = "-";
+const drv = { client: null, line: () => local.drv.line };
+const inLine = (c, line) => !line || line === ALL || (line === NONE ? !c.lineId : c.lineId === line);
+const lineName = id => id === ALL ? "Wszyscy klienci" : id === NONE ? "Klienci bez trasy" : ((cat().lines || []).find(l => l.id === id)?.name || "");
+// do zabrania: stan magazynu minus to, co już jest w bieżącej trasie i w niewysłanych trasach
+function available() {
+  const m = new Map();
+  for (const s of st.stock) m.set(skey(s.client, s.item, s.unit), { ...s });
+  const take = r => { const cur = m.get(skey(r.client, r.item, r.unit)); if (cur) { cur.qty = r2(cur.qty - r.qty); cur.kg = r2(cur.kg - (r.kg || 0)); } };
+  local.drv.route.forEach(take);
+  local.pending.filter(p => p.kind !== "magazyn" && !p.saved).forEach(p => (p.route || []).forEach(take));
+  return [...m.values()].filter(s => s.qty > 0 || s.kg > 0);
+}
+const openPickupIds = () => new Set(pick.list.filter(p => !p.doneAt && p.clientId).map(p => p.clientId));
+function renderDrive() {
+  if (!$("#dLines")) return;
+  const line = local.drv.line;
+  // trasa usunięta przez kierownika w międzyczasie
+  if (line && line !== ALL && line !== NONE && !(cat().lines || []).some(l => l.id === line)) local.drv.line = "";
+  const on = !!local.drv.line;
+  $("#dLineStep").hidden = on; $("#dRun").hidden = !on;
+  $("#dSideLine").textContent = on ? "· " + lineName(local.drv.line) : "";
+  renderDriveSummary();
+  if (!on) { renderDriveLines(); return; }
+  $("#dLineName").textContent = "Trasa: " + lineName(local.drv.line);
+  const c = drv.client && cat().clients.find(x => x.id === drv.client.id);
+  if (!c) drv.client = null;
+  $("#dClientStep").hidden = !!c; $("#dItemStep").hidden = !c;
+  renderClientGeo();
+  if (c) renderDriveItems(c); else renderDriveClients();
+  renderPickups();
+}
+function renderDriveLines() {
+  const av = available(), pk = openPickupIds();
+  const ids = (cat().lines || []).map(l => l.id);
+  if (cat().clients.some(c => !c.lineId)) ids.push(NONE);
+  ids.push(ALL);
+  const box = $("#dLines"); box.innerHTML = "";
+  if (!(cat().lines || []).length) box.innerHTML = "<div class='empty'>Nie ma jeszcze tras. Kierownik dodaje je w zakładce Klienci.</div>";
+  for (const id of ids) {
+    const cl = cat().clients.filter(c => inLine(c, id));
+    const names = new Set(cl.map(c => c.name));
+    const withStock = new Set(av.filter(s => names.has(s.client)).map(s => s.client)).size;
+    const toPick = cl.filter(c => pk.has(c.id)).length;
+    const b = document.createElement("button");
+    b.className = "tile";
+    b.innerHTML = `<span>${esc(lineName(id))}</span><span class='sub'>${cl.length} ${cl.length === 1 ? "klient" : "klientów"}</span>` +
+      (withStock ? `<span class='got'>📦 ${withStock} z praniem do zawiezienia</span>` : "") + (toPick ? `<span class='got' style='color:var(--warn,#b45309)'>📞 ${toPick} do odebrania</span>` : "");
+    b.onclick = () => { local.drv.line = id; drv.client = null; save(); renderDrive(); window.scrollTo({ top: 0, behavior: "smooth" }); };
+    box.append(b);
+  }
+}
+function renderDriveClients() {
+  const av = available(), pk = openPickupIds();
+  const inRoute = new Set(local.drv.route.map(r => r.client));
+  const list = cat().clients.filter(c => inLine(c, local.drv.line))
+    .map(c => ({ c, n: av.filter(s => s.client === c.name).length, pk: pk.has(c.id) }))
+    .sort((a, b) => (b.pk - a.pk) || ((b.n > 0) - (a.n > 0)) || byUse(a.c, b.c, "visits"));
+  const box = $("#dClients"); box.innerHTML = "";
+  if (!list.length) { box.innerHTML = "<div class='empty'>Na tej trasie nie ma klientów. Kierownik przypisuje ich w zakładce Klienci.</div>"; return; }
+  for (const { c, n, pk: p } of list) {
+    const b = document.createElement("button");
+    b.className = "tile" + (inRoute.has(c.name) ? " done" : "");
+    b.innerHTML = `<span>${esc(c.name)}</span>` +
+      `<span class='sub'>${n ? `📦 ${n} ${n === 1 ? "pozycja" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "pozycje" : "pozycji"} w magazynie` : "nic w magazynie"}</span>` +
+      (p ? `<span class='got' style='color:var(--warn,#b45309)'>📞 do odebrania</span>` : "") +
+      (inRoute.has(c.name) ? `<span class='got'>✓ w trasie</span>` : "");
+    b.onclick = () => drvPick(c);
+    box.append(b);
+  }
+}
+function drvPick(c) {
+  if (!local.drv.line) local.drv.line = c.lineId || ALL;
+  drv.client = c; save(); renderDrive(); window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function drvAdd(c, item, e) {
+  if (!local.drv.routeId) local.drv.routeId = newId();
+  local.drv.route.push({ client: c.name, item, ...e, t: Date.now() });
+  save(); renderDrive();
+}
+function renderDriveItems(c) {
+  $("#dClientName").textContent = c.name;
+  const list = available().filter(s => s.client === c.name);
+  const got = new Map();
+  for (const r of local.drv.route) if (r.client === c.name) addTo(got, r.item, r);
+  const box = $("#dItems"); box.innerHTML = "";
+  $("#dAll").hidden = !list.length;
+  for (const s of list) {
+    const done = [...got.values()].find(v => v.label === s.item);
+    const b = document.createElement("button");
+    b.className = "tile" + (done ? " done" : "");
+    b.innerHTML = `<span>${esc(s.item)}</span><span class='sub'>w magazynie: ${fmtEntry(s)}</span>` + (done ? `<span class='got'>✓ w trasie ${fmtEntry(done)}</span>` : "");
+    b.onclick = () => openQty(c, { name: s.item, unit: s.unit }, { max: { qty: s.qty, kg: s.kg }, fill: { qty: s.qty, kg: s.kg }, ok: "Dodaj do trasy", onAdd: e => drvAdd(c, s.item, e) });
+    box.append(b);
+  }
+  // to, co już w całości zabrane
+  for (const v of got.values()) {
+    if (list.some(s => s.item === v.label)) continue;
+    const b = document.createElement("button");
+    b.className = "tile done"; b.disabled = true;
+    b.innerHTML = `<span>${esc(v.label)}</span><span class='got'>✓ zabrane: ${fmtEntry(v)}</span>`;
+    box.append(b);
+  }
+  if (!box.children.length) box.innerHTML = "<div class='empty'>Dla tego klienta nie ma nic w magazynie.</div>";
+}
+$("#dAll").onclick = () => {
+  const c = drv.client; if (!c) return;
+  for (const s of available().filter(x => x.client === c.name)) {
+    // „szt.+kg” musi mieć obie liczby; pozycje bez którejś zostają do ręcznego wpisania
+    if (s.qty <= 0 || (s.unit === "szt_kg" && s.kg <= 0)) continue;
+    drvAdd(c, s.item, s.unit === "szt_kg" ? { unit: s.unit, qty: s.qty, kg: s.kg } : { unit: s.unit, qty: s.qty });
+  }
+};
+$("#dBack").onclick = () => { drv.client = null; renderDrive(); };
+$("#dLineBack").onclick = () => { local.drv.line = ""; drv.client = null; save(); renderDrive(); };
+function renderDriveSummary() {
+  const route = local.drv.route;
+  if (!route.length) { $("#dSummary").innerHTML = "Brak wpisów. Wybierz klienta i pranie z magazynu."; return; }
+  const byClient = new Map();
+  route.forEach((r, i) => { if (!byClient.has(r.client)) byClient.set(r.client, []); byClient.get(r.client).push(i); });
+  let h = "";
+  for (const [c, idx] of byClient) {
+    h += `<div class='rClient'>${esc(c)}</div>`;
+    for (const i of idx) { const r = route[i]; h += `<div class='rRow'><span class='nm'>${esc(r.item)}</span><span class='q'>${fmtEntry(r)}</span><button data-del='${i}' aria-label='Usuń wpis' title='Usuń wpis'>✕</button></div>`; }
+  }
+  h += `<div class='rTotal'>Klientów: <b>${byClient.size}</b> · wpisów: <b>${route.length}</b></div>`;
+  $("#dSummary").innerHTML = h;
+  $("#dSummary").querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+    const r = route[+b.dataset.del]; if (!r) return;
+    if (!confirm(`Usunąć z trasy: ${r.client} – ${r.item} ${fmtEntry(r)}? Pranie wróci do magazynu.`)) return;
+    route.splice(+b.dataset.del, 1); if (!route.length) local.drv.routeId = null;
+    save(); renderDrive();
+  });
+}
+$("#dCopy").onclick = () => { navigator.clipboard?.writeText(summaryText(local.drv.route)); };
+$("#dClear").onclick = () => { if (confirm("Usunąć wszystkie wpisy bieżącej trasy? Pranie wróci do magazynu.")) { local.drv.route = []; local.drv.routeId = null; drv.client = null; save(); renderDrive(); } };
+$("#dSend").onclick = async () => {
+  const d = local.drv;
+  if (!d.route.length) { alert("Trasa jest pusta."); return; }
+  if (!confirm("Zakończyć trasę i wysłać podsumowanie?")) return;
+  const device = await deviceHints();
+  const named = d.line && d.line !== ALL && d.line !== NONE ? lineName(d.line) : undefined;
+  local.pending.push({ kind: "trasa", id: d.routeId || newId(), line: named, worker: local.worker, date: new Date().toISOString(), device, route: plain(d.route) });
+  d.route = []; d.routeId = null; d.line = ""; drv.client = null; save(); renderDrive();
+  const ok = await flushPending(true);
+  alert(ok ? "Koniec trasy. Podsumowanie wysłane." : "Nie udało się wysłać. Trasa czeka na tym urządzeniu i wyśle się sama, gdy wróci połączenie.");
+};
+
+// ---------- trasy kierowców (zakładka Klienci, kierownik) ----------
+const lineOptions = sel => "<option value=''>— bez trasy —</option>" + (cat().lines || []).map(l => `<option value='${esc(l.id)}' ${l.id === sel ? "selected" : ""}>${esc(l.name)}</option>`).join("");
+function renderLines() {
+  const ul = $("#lList"); if (!ul) return;
+  const lines = cat().lines || [];
+  ul.innerHTML = lines.length ? "" : "<li class='small'>Brak tras.</li>";
+  for (const l of lines) {
+    const n = cat().clients.filter(c => c.lineId === l.id).length;
+    const li = document.createElement("li");
+    li.innerHTML = `<span><b>${esc(l.name)}</b> <span class='small'>· ${n} ${n === 1 ? "klient" : "klientów"}</span></span><span class='row' style='justify-content:flex-end'><button class='btn' data-e>Zmień nazwę</button><button class='btn del' data-d>Usuń</button></span>`;
+    li.querySelector("[data-e]").onclick = async () => {
+      const name = prompt("Nazwa trasy:", l.name); if (!name || !name.trim()) return;
+      try { await api("linie", { method: "PUT", body: { id: l.id, name: name.trim() } }); } catch (e) { alert("Nie zapisano: " + e.message); }
+      loadCatalog();
+    };
+    li.querySelector("[data-d]").onclick = async () => {
+      if (!confirm(`Usunąć trasę „${l.name}”? Klienci zostaną, tylko bez przypisanej trasy.`)) return;
+      try { await api("linie?id=" + encodeURIComponent(l.id), { method: "DELETE" }); } catch (e) { alert(e.message); }
+      loadCatalog();
+    };
+    ul.append(li);
+  }
+  const keep = $("#cLine").value;
+  $("#cLine").innerHTML = lineOptions(keep);
+}
+$("#lAdd").onclick = async () => {
+  const name = $("#lName").value.trim(); if (!name) return;
+  try { await api("linie", { method: "POST", body: { name } }); $("#lName").value = ""; } catch (e) { alert("Nie dodano: " + e.message); }
+  loadCatalog();
+};
+
 window.addEventListener("online", () => flushPending(false));
 renderList("c"); renderList("a"); ui();
-loadCatalog().then(ok => { if (ok) flushPending(false); loadHistory(); loadPickups(); });
+renderDrive(); renderLines();
+loadCatalog().then(ok => { if (ok) flushPending(false); loadHistory(); loadPickups(); loadStock(); });
 window.__pralnia = { handle, parseItems, findClient, local };

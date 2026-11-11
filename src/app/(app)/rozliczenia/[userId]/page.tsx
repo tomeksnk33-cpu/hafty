@@ -21,7 +21,7 @@ export default async function EmployeeSettlementPage(props: PageProps<"/rozlicze
 
   const employee = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, login: true, role: true, canManageRealizations: true, isLaundryManager: true, active: true },
+    select: { id: true, name: true, login: true, role: true, canManageRealizations: true, isLaundryManager: true, isLaundryDriver: true, active: true },
   });
 
   if (!employee) notFound();

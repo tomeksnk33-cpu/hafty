@@ -84,7 +84,7 @@ dialog#gDialog{border:1px solid var(--line);border-radius:14px;background:var(--
 .touch .geo{text-align:left;margin:0 0 10px}
 .touch .geo .btn{font-size:clamp(14px,1vw,18px);padding:10px 14px}
 /* ---- trasa: ekran dotykowy (również monitory 24–27") ---- */
-main:has(#trasa.on){max-width:1800px}
+main:has(#trasa.on),main:has(#magazyn.on){max-width:1800px}
 .trasaGrid{display:block}
 @media (min-width:1100px){
   .trasaGrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(380px,30%);gap:16px;align-items:start}
@@ -156,9 +156,10 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
 </style>
 </head>
 <body>
-<header class="row" style="justify-content:space-between"><h1><a href="/" title="Wybór aplikacji">‹ Trasa pralni</a></h1><span id="who" style="font-size:13px;opacity:.9"></span></header>
+<header class="row" style="justify-content:space-between"><h1><a href="/" title="Wybór aplikacji">‹ Pralnia</a></h1><span id="who" style="font-size:13px;opacity:.9"></span></header>
 <nav>
-  <button data-tab="trasa" class="on">Trasa</button>
+  <button data-tab="magazyn" class="on">Magazyn</button>
+  <button data-tab="trasa" class="driverOnly" style="display:none">Trasa</button>
   <button data-tab="klienci" class="managerOnly" style="display:none">Klienci</button>
   <button data-tab="asort" class="managerOnly" style="display:none">Asortyment</button>
   <button data-tab="cennik" class="adminOnly" style="display:none">Cennik</button>
@@ -166,26 +167,12 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
   <button data-tab="ust">Ustawienia</button>
 </nav>
 <main>
+<div id="banner"></div>
 
-<!-- TRASA -->
-<section id="trasa" class="on">
-  <div id="banner"></div>
+<!-- MAGAZYN: pracownik pralni wpisuje wyprane pranie (dotykiem albo głosem) -->
+<section id="magazyn" class="on">
   <div class="trasaGrid">
   <div class="trasaMain">
-  <!-- zgłoszenia odbioru prania: SMS od klienta albo dodane ręcznie -->
-  <div class="card pickups" id="pickups">
-    <div class="row" style="justify-content:space-between">
-      <h2 class="tStep" style="margin:0">📞 Do odebrania <span id="pkCount"></span></h2>
-      <button class="btn tBack" id="pkAddOpen">+ Dodaj zgłoszenie</button>
-    </div>
-    <div id="pkAdd" class="pkAdd" hidden>
-      <select id="pkClient"></select>
-      <input id="pkMsg" placeholder="Uwagi (opcjonalnie), np. 3 worki, po 12:00">
-      <div class="row"><button class="btn pri tBack" id="pkAddGo">Dodaj</button><button class="btn tBack" id="pkAddCancel">Anuluj</button></div>
-    </div>
-    <div id="pkList"></div>
-    <details id="pkDoneBox" hidden><summary class="small">Odebrane w ostatniej dobie (<span id="pkDoneCount"></span>)</summary><div id="pkDone"></div></details>
-  </div>
   <!-- wybór dotykiem: klient -> asortyment -> ilość -->
   <div class="card touch">
     <div id="tClientStep">
@@ -198,14 +185,13 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
         <button class="btn tBack" id="tBack">‹ Inny klient</button>
         <div class="tClientName" id="tClientName"></div>
       </div>
-      <div class="geo" id="clientGeo" hidden></div>
       <h2 class="tStep">2. Wybierz asortyment</h2>
       <div class="tiles" id="tItems"></div>
       <button class="btn tMore" id="tAllItems" hidden></button>
     </div>
   </div>
   <div class="card">
-    <button id="mic" class="big">🎤 Rozpocznij trasę głosem</button>
+    <button id="mic" class="big">🎤 Wpisuj głosem</button>
     <div class="state" id="state">Naciśnij przycisk i podaj nazwę klienta.</div>
     <div class="current" id="current"></div>
     <div class="heard" id="heard"></div>
@@ -213,8 +199,74 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
       <input id="typed" placeholder="Albo wpisz to, co byś powiedział…" style="flex:1">
       <button class="btn" id="typedGo">Wyślij</button>
     </div>
-    <p class="small" style="margin:8px 0 0">Komendy: <b>„następny klient”</b>, <b>„cofnij”</b>, <b>„koniec trasy”</b>. Przykład: „prześcieradła 20”, „ręczniki 15, poszewki 30”, „pościel 12,5 kilo”, „ręczniki 20 sztuk 8 kilo”.</p>
+    <p class="small" style="margin:8px 0 0">Komendy: <b>„następny klient”</b>, <b>„cofnij”</b>, <b>„zapisz”</b> (zapisuje na magazyn). Przykład: „prześcieradła 20”, „ręczniki 15, poszewki 30”, „pościel 12,5 kilo”, „ręczniki 20 sztuk 8 kilo”.</p>
     <div class="log" id="log"></div>
+  </div>
+  <div class="card" id="stockCard">
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">📦 Stan magazynu <span id="stCount"></span></h2><button class="btn" id="stRefresh">Odśwież</button></div>
+    <div id="stList" class="scroll" style="margin-top:8px"></div>
+    <details id="stRecentBox"><summary class="small">Ostatnio przyjęte na magazyn</summary><div id="stRecent" class="scroll"></div></details>
+  </div>
+  </div>
+  <aside class="trasaSide">
+  <div class="card">
+    <h2>Wyprane – do zapisania</h2>
+    <div id="summary" class="small">Brak wpisów.</div>
+    <div class="sideBtns">
+      <button class="btn pri" id="sendNow">Zapisz na magazyn</button>
+      <div class="row">
+        <button class="btn" id="copySum">Kopiuj listę</button>
+        <button class="btn del" id="clearRoute">Wyczyść listę</button>
+      </div>
+    </div>
+  </div>
+  </aside>
+  </div>
+</section>
+
+<!-- TRASA KIEROWCY: wybór trasy -> klienci na trasie -> pranie z magazynu -->
+<section id="trasa">
+  <div class="trasaGrid">
+  <div class="trasaMain">
+  <div class="card touch" id="dLineStep">
+    <h2 class="tStep">1. Na jaką trasę jedziesz?</h2>
+    <div class="tiles" id="dLines"></div>
+  </div>
+  <div id="dRun" hidden>
+    <div class="card touch">
+      <div class="tHead">
+        <button class="btn tBack" id="dLineBack">‹ Zmień trasę</button>
+        <div class="tClientName" id="dLineName"></div>
+      </div>
+      <div id="dClientStep">
+        <h2 class="tStep">2. Klienci na trasie</h2>
+        <div class="tiles" id="dClients"></div>
+      </div>
+      <div id="dItemStep" hidden>
+        <div class="tHead">
+          <button class="btn tBack" id="dBack">‹ Inny klient</button>
+          <div class="tClientName" id="dClientName"></div>
+        </div>
+        <div class="geo" id="dGeo"></div>
+        <h2 class="tStep">3. Pranie z magazynu</h2>
+        <div class="tiles" id="dItems"></div>
+        <button class="btn tMore" id="dAll">Zabierz wszystko dla tego klienta</button>
+      </div>
+    </div>
+  <!-- zgłoszenia odbioru prania: SMS od klienta albo dodane ręcznie -->
+    <div class="card pickups" id="pickups">
+      <div class="row" style="justify-content:space-between">
+        <h2 class="tStep" style="margin:0">📞 Do odebrania <span id="pkCount"></span></h2>
+        <button class="btn tBack" id="pkAddOpen">+ Dodaj zgłoszenie</button>
+      </div>
+      <div id="pkAdd" class="pkAdd" hidden>
+        <select id="pkClient"></select>
+        <input id="pkMsg" placeholder="Uwagi (opcjonalnie), np. 3 worki, po 12:00">
+        <div class="row"><button class="btn pri tBack" id="pkAddGo">Dodaj</button><button class="btn tBack" id="pkAddCancel">Anuluj</button></div>
+      </div>
+      <div id="pkList"></div>
+      <details id="pkDoneBox" hidden><summary class="small">Odebrane w ostatniej dobie (<span id="pkDoneCount"></span>)</summary><div id="pkDone"></div></details>
+    </div>
   </div>
   <div class="card managerOnly" style="display:none">
     <div class="row" style="justify-content:space-between"><h2>Ostatnie trasy (wszyscy pracownicy)</h2><button class="btn" id="histRefresh">Odśwież</button></div>
@@ -223,13 +275,13 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
   </div>
   <aside class="trasaSide">
   <div class="card">
-    <h2>Bieżąca trasa</h2>
-    <div id="summary" class="small">Brak wpisów.</div>
+    <h2>Bieżąca trasa <span id="dSideLine" class="small"></span></h2>
+    <div id="dSummary" class="small">Brak wpisów.</div>
     <div class="sideBtns">
-      <button class="btn pri" id="sendNow">Koniec trasy – wyślij mail</button>
+      <button class="btn pri" id="dSend">Koniec trasy – wyślij mail</button>
       <div class="row">
-        <button class="btn" id="copySum">Kopiuj podsumowanie</button>
-        <button class="btn del" id="clearRoute">Wyczyść trasę</button>
+        <button class="btn" id="dCopy">Kopiuj podsumowanie</button>
+        <button class="btn del" id="dClear">Wyczyść trasę</button>
       </div>
     </div>
   </div>
@@ -247,17 +299,24 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
   <p class="bad" id="qErr" style="min-height:22px;margin:8px 0 0"></p>
   <div class="qBtns">
     <button class="btn" id="qCancel">Anuluj</button>
-    <button class="btn pri" id="qOk">Dodaj do trasy</button>
+    <button class="btn pri" id="qOk">Dodaj</button>
   </div>
 </dialog>
 
 <!-- KLIENCI -->
 <section id="klienci">
   <div class="card">
+    <h2>Trasy kierowców</h2>
+    <p class="small" style="margin:0 0 8px">Kierowca najpierw wybiera trasę, a potem widzi jej klientów. Klienta przypisujesz do trasy na liście poniżej.</p>
+    <div class="row"><input id="lName" placeholder="np. Sanok" style="flex:1"><button class="btn pri" id="lAdd">Dodaj trasę</button></div>
+    <ul class="list" id="lList"></ul>
+  </div>
+  <div class="card">
     <h2>Dodaj klienta</h2>
     <label>Nazwa</label><input id="cName" placeholder="np. Hotel Pod Lipami">
     <label>Inne nazwy, po przecinku (jak pracownik może go nazywać)</label><input id="cAlias" placeholder="np. pod lipami, lipy">
     <label>Telefony, po przecinku (z nich klient wysyła SMS o odbiór prania)</label><input id="cPhone" inputmode="tel" placeholder="np. 600 100 200, 13 43 00 000">
+    <label for="cLine">Trasa kierowcy</label><select id="cLine"></select>
     <div class="row" style="margin-top:10px"><button class="btn pri" id="cAdd">Dodaj</button></div>
   </div>
   <p class="small" id="cSync"></p>
@@ -329,8 +388,8 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
   <div class="card">
     <h2>Ten telefon</h2>
     <p style="margin:0">Zalogowano jako <b id="sWorker">…</b>. To imię pojawi się w mailu z trasą.</p>
-    <p class="small">Konto i hasło są te same co w bazie haftów. Imię zmienia administrator w zakładce <b>Pracownicy</b>.
-      Podsumowanie trasy wysyła się automatycznie na adres ustawiony na serwerze.</p>
+    <p class="small">Konto i hasło są te same co w bazie haftów. Imię zmienia administrator w zakładce <b>Pracownicy</b>
+      (tam też zaznacza, kto jest kierowcą). Podsumowanie trasy kierowcy wysyła się automatycznie na adres ustawiony na serwerze.</p>
     <div class="row" style="margin-top:10px"><a class="btn" href="/">Wybór aplikacji</a><a class="btn" href="/konto">Moje konto</a></div>
   </div>
   <div class="card">

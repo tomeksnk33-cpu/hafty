@@ -53,11 +53,14 @@ const esc = (s: string) =>
 /** Treść maila z podsumowaniem trasy: każdy klient osobno i suma całej trasy. */
 export function renderRouteMail({
   workerName,
+  lineName,
   device,
   finishedAt,
   lines,
 }: {
   workerName: string;
+  /** Stała trasa wybrana przez kierowcę. */
+  lineName?: string | null;
   device?: string | null;
   finishedAt: Date;
   lines: RouteLine[];
@@ -70,12 +73,12 @@ export function renderRouteMail({
     timeZone: "Europe/Warsaw",
   });
   const day = finishedAt.toLocaleDateString("pl-PL", { timeZone: "Europe/Warsaw" });
-  const subject = `Trasa ${workerName || "pracownika"} – ${day}`;
+  const subject = `Trasa ${lineName ? `„${lineName}” ` : ""}${workerName || "pracownika"} – ${day}`;
 
   const from = device || "nieznane";
 
-  let text = `Podsumowanie trasy – ${when}\nPracownik: ${worker}\nWysłano z urządzenia: ${from}\n\n`;
-  let html = `<h2 style="margin:0 0 4px">Podsumowanie trasy</h2><p style="margin:0 0 12px;color:#555">${esc(when)} · Pracownik: <b>${esc(worker)}</b><br>Wysłano z urządzenia: <b>${esc(from)}</b></p>`;
+  let text = `Podsumowanie trasy${lineName ? ` ${lineName}` : ""} – ${when}\nPracownik: ${worker}\nWysłano z urządzenia: ${from}\n\n`;
+  let html = `<h2 style="margin:0 0 4px">Podsumowanie trasy${lineName ? ` ${esc(lineName)}` : ""}</h2><p style="margin:0 0 12px;color:#555">${esc(when)} · Pracownik: <b>${esc(worker)}</b><br>Wysłano z urządzenia: <b>${esc(from)}</b></p>`;
   html += `<table cellpadding="6" style="border-collapse:collapse;font-family:sans-serif;font-size:14px">`;
 
   for (const [client, items] of byClient) {

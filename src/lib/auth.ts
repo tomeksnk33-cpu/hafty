@@ -33,6 +33,8 @@ export type SessionUser = {
   canUseAttendance: boolean;
   /** Kierownik pralni (lub administrator): klienci, asortyment i grafik pralni, bez cen. */
   canManageLaundry: boolean;
+  /** Kierowca pralni (lub administrator): trasa z wydawaniem prania z magazynu. */
+  canDriveLaundry: boolean;
   /** Dodawanie i edycja haftów, klientów i nici. */
   canManage: boolean;
   /** Ceny, wartości i podsumowania finansowe. */
@@ -48,6 +50,7 @@ function toSessionUser(user: {
   canUseEmbroidery: boolean;
   canUseLaundry: boolean;
   isLaundryManager: boolean;
+  isLaundryDriver: boolean;
   canUseTimeclock: boolean;
   canUseAttendance: boolean;
 }): SessionUser {
@@ -64,6 +67,7 @@ function toSessionUser(user: {
     canUseEmbroidery,
     canUseLaundry,
     canManageLaundry: isAdmin || (canUseLaundry && user.isLaundryManager),
+    canDriveLaundry: isAdmin || (canUseLaundry && user.isLaundryDriver),
     canUseTimeclock: isAdmin || user.canUseTimeclock,
     canUseAttendance: isAdmin || user.canUseAttendance,
     canManage: isAdmin || (canUseEmbroidery && user.canManageRealizations),
@@ -180,6 +184,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
       canUseEmbroidery: true,
       canUseLaundry: true,
       isLaundryManager: true,
+      isLaundryDriver: true,
       canUseTimeclock: true,
       canUseAttendance: true,
       active: true,
