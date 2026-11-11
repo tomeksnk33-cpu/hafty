@@ -487,14 +487,12 @@ async function clearLocation(clientId) {
 }
 const geoButton = (id, has) => `<button class='btn' data-g ${geoBusy.has(id) ? "disabled" : ""}>${geoBusy.has(id) ? "⏳ Ustalam położenie…" : has ? "📍 Pobierz ponownie" : "📍 Pobierz dane geolokalizacji"}</button>`;
 // w zakładce Trasa: lokalizacja klienta, którego właśnie podano
-// lokalizację zapisuje kierowca u klienta (na ekranie trasy, po wybraniu klienta)
+// kierowca widzi tylko nawigację do zapisanego miejsca klienta (lokalizację zapisuje kierownik w zakładce Klienci)
 function renderClientGeo() {
   const box = $("#dGeo");
   const c = drv.client && cat().clients.find(x => x.id === drv.client.id);
-  box.hidden = !c;
-  if (!c) { box.innerHTML = ""; return; }
-  box.innerHTML = geoButton(c.id, !!c.location) + `<span class='small'>${c.location ? locText(c.location) : "Brak zapisanej lokalizacji."}</span>`;
-  box.querySelector("[data-g]").onclick = () => captureLocation(c.id);
+  box.hidden = !c || !c.location;
+  box.innerHTML = c && c.location ? `<a class='btn' style='text-decoration:none' href='${navUrl(c.location)}' target='_blank' rel='noopener'>🧭 Nawiguj do klienta</a>` : "";
 }
 
 // shared catalog lists
@@ -854,9 +852,7 @@ async function loadPickups() {
   if (fresh.length) log("Nowe zgłoszenie odbioru prania (" + fresh.length + ")", "warn");
 }
 function renderPickups(fresh = new Set()) {
-  // kierowca widzi zgłoszenia klientów ze swojej trasy (i z nieznanych numerów)
-  const onLine = p => { const c = p.clientId && cat().clients.find(x => x.id === p.clientId); return !c || inLine(c, drv.line()); };
-  const open = pick.list.filter(p => !p.doneAt && onLine(p)), done = pick.list.filter(p => p.doneAt && onLine(p)).reverse();
+  const open = pick.list.filter(p => !p.doneAt), done = pick.list.filter(p => p.doneAt).reverse();
   $("#pkCount").textContent = open.length ? "(" + open.length + ")" : "";
   const row = p => {
     const c = p.clientId && cat().clients.find(x => x.id === p.clientId);
@@ -868,7 +864,7 @@ function renderPickups(fresh = new Set()) {
       ? `<button class='btn' data-undo>Cofnij</button>`
       : (c?.location ? `<a class='btn' href='${navUrl(c.location)}' target='_blank' rel='noopener'>🧭 Nawiguj</a>` : "") +
         (phone ? `<a class='btn' href='tel:${esc(phone)}'>📞 Zadzwoń</a>` : "") +
-        (c ? `<button class='btn' data-pick>Wydaj pranie</button>` : `<select data-assign><option value=''>Przypisz do klienta…</option>${[...cat().clients].sort((a, b) => a.name.localeCompare(b.name, "pl")).map(x => `<option value='${esc(x.id)}'>${esc(x.name)}</option>`).join("")}</select>`) +
+        (c ? "" : `<select data-assign><option value=''>Przypisz do klienta…</option>${[...cat().clients].sort((a, b) => a.name.localeCompare(b.name, "pl")).map(x => `<option value='${esc(x.id)}'>${esc(x.name)}</option>`).join("")}</select>`) +
         `<button class='btn ok' data-done>✓ Odebrane</button>`;
     return `<div class='pk${p.doneAt ? " done" : ""}${fresh.has(p.id) ? " new" : ""}' data-id='${esc(p.id)}'><div class='who'><b>${esc(who)}</b><div class='small'>${esc(meta)}</div>${p.message ? `<div class='msg'>„${esc(p.message)}”</div>` : ""}</div><div class='acts'>${acts}${local.isAdmin ? "<button class='btn del' data-x title='Usuń zgłoszenie'>✕</button>" : ""}</div></div>`;
   };
@@ -880,7 +876,6 @@ function renderPickups(fresh = new Set()) {
     const on = (sel, fn) => { const b = el.querySelector(sel); if (b) b.onclick = fn; };
     on("[data-done]", () => patchPickup(p, { done: true }));
     on("[data-undo]", () => patchPickup(p, { done: false }));
-    on("[data-pick]", () => { const c = cat().clients.find(x => x.id === p.clientId); if (c) drvPick(c); });
     on("[data-x]", async () => { if (!confirm("Usunąć to zgłoszenie?")) return; try { await api("odbiory?id=" + encodeURIComponent(p.id), { method: "DELETE" }); } catch (e) { alert(e.message); } loadPickups(); });
     const sel = el.querySelector("[data-assign]");
     if (sel) sel.onchange = async () => {
@@ -1102,7 +1097,7 @@ $("#stRefresh").onclick = loadStock;
 // 1. trasa (np. „Sanok”) -> 2. klienci tej trasy: pranie w magazynie i zgłoszenia „do odebrania”
 // -> 3. pranie klienta z magazynu (ilość podpowiada stan) -> koniec trasy: mail i zdjęcie z magazynu.
 const ALL = "*", NONE = "-";
-const drv = { client: null, line: () => local.drv.line };
+const drv = { client: null };
 const inLine = (c, line) => !line || line === ALL || (line === NONE ? !c.lineId : c.lineId === line);
 const lineName = id => id === ALL ? "Wszyscy klienci" : id === NONE ? "Klienci bez trasy" : ((cat().lines || []).find(l => l.id === id)?.name || "");
 // do zabrania: stan magazynu minus to, co już jest w bieżącej trasie i w niewysłanych trasach
@@ -1114,7 +1109,6 @@ function available() {
   local.pending.filter(p => p.kind !== "magazyn" && !p.saved).forEach(p => (p.route || []).forEach(take));
   return [...m.values()].filter(s => s.qty > 0 || s.kg > 0);
 }
-const openPickupIds = () => new Set(pick.list.filter(p => !p.doneAt && p.clientId).map(p => p.clientId));
 function renderDrive() {
   if (!$("#dLines")) return;
   const line = local.drv.line;
@@ -1131,10 +1125,9 @@ function renderDrive() {
   $("#dClientStep").hidden = !!c; $("#dItemStep").hidden = !c;
   renderClientGeo();
   if (c) renderDriveItems(c); else renderDriveClients();
-  renderPickups();
 }
 function renderDriveLines() {
-  const av = available(), pk = openPickupIds();
+  const av = available();
   const ids = (cat().lines || []).map(l => l.id);
   if (cat().clients.some(c => !c.lineId)) ids.push(NONE);
   ids.push(ALL);
@@ -1144,29 +1137,28 @@ function renderDriveLines() {
     const cl = cat().clients.filter(c => inLine(c, id));
     const names = new Set(cl.map(c => c.name));
     const withStock = new Set(av.filter(s => names.has(s.client)).map(s => s.client)).size;
-    const toPick = cl.filter(c => pk.has(c.id)).length;
     const b = document.createElement("button");
     b.className = "tile";
-    b.innerHTML = `<span>${esc(lineName(id))}</span><span class='sub'>${cl.length} ${cl.length === 1 ? "klient" : "klientów"}</span>` +
-      (withStock ? `<span class='got'>📦 ${withStock} z praniem do zawiezienia</span>` : "") + (toPick ? `<span class='got' style='color:var(--warn,#b45309)'>📞 ${toPick} do odebrania</span>` : "");
+    b.innerHTML = `<span>${esc(lineName(id))}</span>${withStock ? `<span class='got'>📦 ${withStock} ${withStock === 1 ? "klient" : "klientów"} z praniem do zawiezienia</span>` : "<span class='sub'>nic do zawiezienia</span>"}`;
     b.onclick = () => { local.drv.line = id; drv.client = null; save(); renderDrive(); window.scrollTo({ top: 0, behavior: "smooth" }); };
     box.append(b);
   }
 }
 function renderDriveClients() {
-  const av = available(), pk = openPickupIds();
+  // tylko klienci, dla których jest coś do zawiezienia (albo już coś w trasie)
+  const av = available();
   const inRoute = new Set(local.drv.route.map(r => r.client));
   const list = cat().clients.filter(c => inLine(c, local.drv.line))
-    .map(c => ({ c, n: av.filter(s => s.client === c.name).length, pk: pk.has(c.id) }))
-    .sort((a, b) => (b.pk - a.pk) || ((b.n > 0) - (a.n > 0)) || byUse(a.c, b.c, "visits"));
+    .map(c => ({ c, n: av.filter(s => s.client === c.name).length }))
+    .filter(x => x.n > 0 || inRoute.has(x.c.name))
+    .sort((a, b) => byUse(a.c, b.c, "visits"));
   const box = $("#dClients"); box.innerHTML = "";
-  if (!list.length) { box.innerHTML = "<div class='empty'>Na tej trasie nie ma klientów. Kierownik przypisuje ich w zakładce Klienci.</div>"; return; }
-  for (const { c, n, pk: p } of list) {
+  if (!list.length) { box.innerHTML = "<div class='empty'>Na tej trasie nie ma nic do zawiezienia.</div>"; return; }
+  for (const { c, n } of list) {
     const b = document.createElement("button");
     b.className = "tile" + (inRoute.has(c.name) ? " done" : "");
     b.innerHTML = `<span>${esc(c.name)}</span>` +
-      `<span class='sub'>${n ? `📦 ${n} ${n === 1 ? "pozycja" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "pozycje" : "pozycji"} w magazynie` : "nic w magazynie"}</span>` +
-      (p ? `<span class='got' style='color:var(--warn,#b45309)'>📞 do odebrania</span>` : "") +
+      `<span class='sub'>${n ? `📦 ${n} ${n === 1 ? "pozycja" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "pozycje" : "pozycji"} w magazynie` : "wszystko już w trasie"}</span>` +
       (inRoute.has(c.name) ? `<span class='got'>✓ w trasie</span>` : "");
     b.onclick = () => drvPick(c);
     box.append(b);
