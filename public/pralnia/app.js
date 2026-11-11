@@ -387,9 +387,24 @@ async function finishRoute(spoken) {
   const msg = ok ? "Zapisano na magazynie." : "Nie udało się zapisać, spróbuję ponownie.";
   if (spoken) await say(msg, { thenListen: false }); else log(msg, ok ? "ok" : "bad");
 }
+// okienko z polem tekstowym zamiast window.prompt — działa z klawiaturą ekranową
+function ask(text, value = "", { password = false } = {}) {
+  return new Promise(resolve => {
+    const dlg = $("#askDlg"), inp = $("#askInput");
+    $("#askText").textContent = text;
+    inp.type = password ? "password" : "text"; inp.value = value ?? "";
+    let done = false;
+    const finish = v => { if (done) return; done = true; dlg.close(); resolve(v); };
+    $("#askOk").onclick = () => finish(inp.value);
+    $("#askCancel").onclick = () => finish(null);
+    inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); finish(inp.value); } };
+    dlg.onclose = () => finish(null);
+    dlg.showModal(); inp.focus(); try { inp.select(); } catch (e) {}
+  });
+}
 // usunięcie całej trasy (np. testowej) — tylko administrator
 async function deleteRoute(id, label) {
-  const pass = prompt(`Usunąć całą trasę ${label}? Tego nie da się cofnąć.\nPodaj hasło usuwania:`);
+  const pass = await ask(`Usunąć całą trasę ${label}? Tego nie da się cofnąć.\nPodaj hasło usuwania:`, "", { password: true });
   if (pass === null) return false;
   try { await api("trasy?id=" + encodeURIComponent(id), { method: "DELETE", headers: { "X-Haslo-Usuniecia": pass.trim() } }); }
   catch (e) { alert("Nie usunięto: " + e.message); return false; }
@@ -432,8 +447,8 @@ $("#copySum").onclick = () => { navigator.clipboard?.writeText(summaryText(local
 $("#clearRoute").onclick = () => { if (confirm("Usunąć wszystkie wpisy z listy?")) { local.route = []; local.routeId = null; mode = "client"; currentClient = null; save(); ui(); } };
 $("#histRefresh").onclick = loadHistory;
 
-document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
-  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
+document.querySelectorAll("nav button[data-tab]").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button[data-tab]").forEach(x => x.classList.toggle("on", x === b));
   document.querySelectorAll("section").forEach(s => s.classList.toggle("on", s.id === b.dataset.tab));
   if (b.dataset.tab === "klienci" || b.dataset.tab === "asort") loadCatalog();
   if (b.dataset.tab === "grafik") loadGrafik();
@@ -523,12 +538,12 @@ function renderList(kind) {
     li.querySelector("[data-d]").onclick = () => {
       if (confirm("Usunąć „" + x.name + "”?")) changeCatalog({ method: "DELETE", query: "?id=" + encodeURIComponent(x.id) });
     };
-    li.querySelector("[data-e]").onclick = () => {
-      const n = prompt("Nazwa:", x.name); if (n === null) return;
-      const a = prompt("Inne nazwy (po przecinku):", (x.aliases || []).join(", ")); if (a === null) return;
+    li.querySelector("[data-e]").onclick = async () => {
+      const n = await ask("Nazwa:", x.name); if (n === null) return;
+      const a = await ask("Inne nazwy (po przecinku):", (x.aliases || []).join(", ")); if (a === null) return;
       const body = { id: x.id, name: n.trim() || x.name, aliases: a.split(",").map(s => s.trim()).filter(Boolean) };
       if (kind === "c") {
-        const ph = prompt("Telefony (po przecinku) – z nich klient wysyła SMS o odbiór prania:", (x.phones || []).map(fmtPhone).join(", ")); if (ph === null) return;
+        const ph = await ask("Telefony (po przecinku) – z nich klient wysyła SMS o odbiór prania:", (x.phones || []).map(fmtPhone).join(", ")); if (ph === null) return;
         body.phones = splitList(ph);
       }
       changeCatalog({ method: "PUT", body });
@@ -563,7 +578,7 @@ function showAdmin(fresh = false) {
   document.querySelectorAll(".driverOnly").forEach(el => { el.style.display = local.canDrive ? "" : "none"; });
   // sam kierowca nie wpisuje prania na magazyn — nie widzi tej zakładki
   document.querySelectorAll(".stockOnly").forEach(el => { el.style.display = local.canStock === false ? "none" : ""; });
-  const on = document.querySelector("nav button.on");
+  const on = document.querySelector("nav button[data-tab].on");
   if (on && on.style.display === "none") document.querySelector(`nav button[data-tab=${local.canStock === false ? "trasa" : "magazyn"}]`).click();
   // sam kierowca (bez kierowania pralnią) zaczyna od trasy
   if (!fresh || !firstShow) return;
@@ -1082,11 +1097,11 @@ function renderStock() {
 // korekta: kierownik podaje, ile faktycznie jest
 async function fixStock(s) {
   const pcs = s.unit === "kg" ? "kilogramów" : "sztuk";
-  const a = prompt(`${s.client} – ${s.item}\nIle ${pcs} jest naprawdę w magazynie? (teraz ${fmtNum(s.qty)})`, String(Math.max(0, s.qty)).replace(".", ","));
+  const a = await ask(`${s.client} – ${s.item}\nIle ${pcs} jest naprawdę w magazynie? (teraz ${fmtNum(s.qty)})`, String(Math.max(0, s.qty)).replace(".", ","));
   if (a === null) return;
   const body = { client: s.client, item: s.item, unit: s.unit, qty: Number(a.replace(",", ".")) };
   if (s.unit === "szt_kg") {
-    const k = prompt(`Ile kilogramów? (teraz ${fmtNum(s.kg)})`, String(Math.max(0, s.kg)).replace(".", ","));
+    const k = await ask(`Ile kilogramów? (teraz ${fmtNum(s.kg)})`, String(Math.max(0, s.kg)).replace(".", ","));
     if (k === null) return;
     body.kg = Number(k.replace(",", "."));
   }
@@ -1283,7 +1298,7 @@ function renderLines() {
     const li = document.createElement("li");
     li.innerHTML = `<span><b>${esc(l.name)}</b> <span class='small'>· ${n} ${n === 1 ? "klient" : "klientów"}</span></span><span class='row' style='justify-content:flex-end'><button class='btn' data-e>Zmień nazwę</button><button class='btn del' data-d>Usuń</button></span>`;
     li.querySelector("[data-e]").onclick = async () => {
-      const name = prompt("Nazwa trasy:", l.name); if (!name || !name.trim()) return;
+      const name = await ask("Nazwa trasy:", l.name); if (!name || !name.trim()) return;
       try { await api("linie", { method: "PUT", body: { id: l.id, name: name.trim() } }); } catch (e) { alert("Nie zapisano: " + e.message); }
       loadCatalog();
     };

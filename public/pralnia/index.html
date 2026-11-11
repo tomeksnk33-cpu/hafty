@@ -153,6 +153,8 @@ dialog#qDialog::backdrop{background:rgba(0,0,0,.5)}
 .qBtns{display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-top:6px}
 .qBtns .btn{font-size:clamp(18px,1.4vw,24px);padding:clamp(14px,1.2vw,20px);border-radius:14px;font-weight:700}
 dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
+dialog#askDlg{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);padding:16px;width:min(560px,calc(100vw - 24px))}
+dialog#askDlg::backdrop{background:rgba(0,0,0,.45)}
 </style>
 </head>
 <body>
@@ -378,6 +380,11 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
   </div>
 </section>
 
+<dialog id="askDlg" aria-labelledby="askText">
+  <p id="askText" style="white-space:pre-line;margin:0 0 10px;font-weight:600"></p>
+  <input id="askInput" autocomplete="off" style="width:100%;font-size:clamp(16px,1.3vw,22px);padding:10px 12px">
+  <div class="row" style="justify-content:flex-end;margin-top:12px"><button type="button" class="btn" id="askCancel">Anuluj</button><button type="button" class="btn pri" id="askOk" data-ok>OK</button></div>
+</dialog>
 <dialog id="gDialog" aria-labelledby="gDayTitle">
   <div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:nowrap">
     <h2 id="gDayTitle" style="margin:0"></h2>
@@ -409,6 +416,7 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
 </section>
 </main>
 <script src="/pralnia/app.js"></script>
+<script src="/pralnia/osk.js"></script>
 <script src="/kiosk/wylacz.js" defer></script>
 </body>
 </html>
