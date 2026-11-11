@@ -89,7 +89,7 @@ export async function GET() {
   // `visits` (ile tras z tym klientem) i `items` (asortyment klienta, najczęstszy
   // najpierw) układają przyciski na ekranie dotykowym trasy.
   return NextResponse.json({
-    user: { name: user.name, isAdmin: user.isAdmin, canManage: user.canManageLaundry, canDrive: user.canDriveLaundry },
+    user: { name: user.name, isAdmin: user.isAdmin, canManage: user.canManageLaundry, canDrive: user.canDriveLaundry, canStock: user.canStockLaundry },
     lines,
     settings,
     clients: rows

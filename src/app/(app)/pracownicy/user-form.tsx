@@ -283,7 +283,7 @@ export function UserForm({
                 ? "Administrator ma wszystkie uprawnienia."
                 : !laundry
                   ? "Wymaga dostępu do trasy pralni."
-                  : "Wybiera trasę, widzi wyprane pranie w magazynie i zgłoszenia do odebrania, wydaje pranie z magazynu i wysyła trasę."}
+                  : "Wybiera trasę, zabiera wyprane pranie z magazynu i wysyła trasę. Nie wpisuje prania na magazyn (chyba że jest też kierownikiem)."}
             </span>
           </span>
         </label>

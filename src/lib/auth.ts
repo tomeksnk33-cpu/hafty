@@ -35,6 +35,8 @@ export type SessionUser = {
   canManageLaundry: boolean;
   /** Kierowca pralni (lub administrator): trasa z wydawaniem prania z magazynu. */
   canDriveLaundry: boolean;
+  /** Wpisuje wyprane pranie na magazyn: pracownik pralni, kierownik, administrator — ale nie sam kierowca. */
+  canStockLaundry: boolean;
   /** Dodawanie i edycja haftów, klientów i nici. */
   canManage: boolean;
   /** Ceny, wartości i podsumowania finansowe. */
@@ -68,6 +70,7 @@ function toSessionUser(user: {
     canUseLaundry,
     canManageLaundry: isAdmin || (canUseLaundry && user.isLaundryManager),
     canDriveLaundry: isAdmin || (canUseLaundry && user.isLaundryDriver),
+    canStockLaundry: isAdmin || (canUseLaundry && (user.isLaundryManager || !user.isLaundryDriver)),
     canUseTimeclock: isAdmin || user.canUseTimeclock,
     canUseAttendance: isAdmin || user.canUseAttendance,
     canManage: isAdmin || (canUseEmbroidery && user.canManageRealizations),
