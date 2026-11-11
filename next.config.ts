@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
       { source: "/pralnia", destination: "/pralnia/index.html" },
       { source: "/rejestrator", destination: "/rejestrator/index.html" },
       { source: "/obecnosc", destination: "/obecnosc/index.html" },
+      // Instrukcja stanowiska dotykowego (przycisk wyłączania komputera), bez logowania.
+      { source: "/kiosk", destination: "/kiosk/index.html" },
     ];
   },
   // Modele rozpoznawania twarzy (~7 MB) zmieniają się tylko z nową wersją aplikacji.

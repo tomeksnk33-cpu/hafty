@@ -94,6 +94,15 @@ Mail wymaga zmiennych środowiskowych (patrz `.env.example`):
 | `MAIL_FROM` | opcjonalnie nadawca, domyślnie `SMTP_USER` |
 | `SMS_WEBHOOK_TOKEN` | pralnia: tajny klucz adresu `/api/pralnia/sms?token=…`, na który bramka SMS (np. SMSAPI.pl) przekazuje SMS-y od klientów; puste = odbiór SMS wyłączony |
 
+**Stanowisko dotykowe: przycisk ⏻ „Wyłącz komputer”.** Strona `/kiosk` (bez
+logowania) prowadzi przez instalację małego programu na komputerze z monitorem
+(`public/kiosk/wylacz-komputer.ps1` dla Windows, instalator
+`zainstaluj-wylaczanie.cmd`; `wylacz-komputer.py` dla Linuksa). Program słucha tylko
+na `127.0.0.1:47800` i wyłącza komputer na `POST /wylacz` z nagłówkiem Origin
+aplikacji. Przycisk (`public/kiosk/wylacz.js`, wczytywany w `layout.tsx` i w
+statycznych aplikacjach) pokazuje się tylko w przeglądarce, w której włączono go na
+`/kiosk` (albo `?kiosk=1`; `?kiosk=0` wyłącza).
+
 **Zgłoszenia odbioru prania (pralnia).** Lista „Do odebrania” w zakładce Trasa:
 SMS od klienta (rozpoznanego po numerze z pola „Telefony” w zakładce Klienci)
 albo zgłoszenie dodane ręcznie. Każdy pracownik pralni widzi, dodaje i odhacza

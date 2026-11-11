@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stanowisko dotykowe – wyłączanie komputera</title>
+<style>
+:root{--bg:#faf8f5;--card:#fff;--ink:#1c1917;--muted:#78716c;--line:#e7e2da;--accent:#9d2f3f;--ok:#15803d;--bad:#b42318}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:760px;margin:0 auto;padding:24px 16px 96px}
+h1{font-size:26px;margin:0 0 6px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:16px 0}
+h2{font-size:19px;margin:0 0 8px}
+ol{margin:6px 0 0;padding-left:22px}li{margin:6px 0}
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:12px 18px;font:600 17px system-ui,sans-serif;text-decoration:none;cursor:pointer;margin:6px 8px 0 0}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.muted{color:var(--muted);font-size:15px}
+.st{font-weight:700}.st.ok{color:var(--ok)}.st.bad{color:var(--bad)}
+code{background:#f5f5f4;border-radius:6px;padding:1px 6px}
+</style>
+</head>
+<body>
+<main>
+  <a href="/" class="muted">‹ Aplikacje GTM Bukowski</a>
+  <h1>Stanowisko dotykowe: przycisk ⏻ „Wyłącz komputer”</h1>
+  <p class="muted">Strona w przeglądarce nie może sama wyłączyć komputera. Robi to mały program na tym komputerze, który przyjmuje polecenie tylko od aplikacji GTM Bukowski i tylko z tego samego komputera. Zrób te kroki raz, na komputerze z monitorem dotykowym.</p>
+
+  <div class="card">
+    <h2>1. Zainstaluj program (Windows)</h2>
+    <ol>
+      <li>Pobierz instalator i uruchom go dwuklikiem. Jeśli Windows ostrzeże o nieznanym pliku, wybierz „Więcej informacji” → „Uruchom mimo to”.</li>
+      <li>Program będzie się sam uruchamiał po każdym włączeniu komputera.</li>
+    </ol>
+    <a class="btn pri" href="/kiosk/zainstaluj-wylaczanie.cmd" download>⬇ Pobierz instalator</a>
+    <p class="muted" style="margin-top:12px">Linux: uruchamiaj przy logowaniu <a href="/kiosk/wylacz-komputer.py" download>wylacz-komputer.py</a> (<code>python3 wylacz-komputer.py</code>).</p>
+  </div>
+
+  <div class="card">
+    <h2>2. Sprawdź program</h2>
+    <p style="margin:0">Stan: <span id="st" class="st">nie sprawdzono</span></p>
+    <button class="btn" id="ping" type="button">Sprawdź program</button>
+    <p class="muted" style="margin-top:10px">Chrome może raz zapytać o dostęp do „urządzeń w sieci lokalnej” – wybierz <b>Zezwól</b>, bo inaczej przycisk nie zadziała.</p>
+  </div>
+
+  <div class="card">
+    <h2>3. Pokaż przycisk ⏻ na tym komputerze</h2>
+    <p style="margin:0">Przycisk pojawi się w lewym dolnym rogu ekranu logowania i aplikacji – tylko w tej przeglądarce, nie na telefonach pracowników.</p>
+    <p>Na tym komputerze: <span id="flag" class="st"></span></p>
+    <button class="btn pri" id="on" type="button">Pokaż przycisk na tym komputerze</button>
+    <button class="btn" id="off" type="button">Ukryj przycisk</button>
+  </div>
+</main>
+<script>
+"use strict";
+var KEY = "gtm-kiosk";
+function flag() {
+  var on = false; try { on = localStorage.getItem(KEY) === "1"; } catch (e) {}
+  var el = document.getElementById("flag");
+  el.textContent = on ? "przycisk włączony ✓" : "przycisk wyłączony";
+  el.className = "st " + (on ? "ok" : "");
+  var b = document.getElementById("gtm-power"); if (b) b.style.display = on ? "" : "none";
+}
+document.getElementById("on").onclick = function () {
+  try { localStorage.setItem(KEY, "1"); } catch (e) {}
+  if (!document.getElementById("gtm-power")) { var s = document.createElement("script"); s.src = "/kiosk/wylacz.js"; document.body.appendChild(s); }
+  flag();
+};
+document.getElementById("off").onclick = function () { try { localStorage.removeItem(KEY); } catch (e) {} flag(); };
+document.getElementById("ping").onclick = function () {
+  var st = document.getElementById("st"); st.textContent = "sprawdzam…"; st.className = "st";
+  fetch("http://127.0.0.1:47800/ping", { mode: "cors" })
+    .then(function (r) { return r.text(); })
+    .then(function (t) { if (t.trim() !== "ok") throw 0; st.textContent = "program działa ✓"; st.className = "st ok"; })
+    .catch(function () { st.textContent = "program nie odpowiada – zainstaluj go (krok 1) albo uruchom ponownie komputer"; st.className = "st bad"; });
+};
+flag();
+</script>
+<script src="/kiosk/wylacz.js"></script>
+</body>
+</html>
