@@ -114,7 +114,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const { denied } = await laundryUser({ manager: true });
+  const { denied } = await laundryUser({ admin: true });
   if (denied) return denied;
 
   const id = new URL(request.url).searchParams.get("id");

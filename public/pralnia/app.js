@@ -398,8 +398,8 @@ async function loadHistory() {
   ul.innerHTML = list.length ? "" : "<li class='small'>Brak.</li>";
   for (const h of list) {
     const li = document.createElement("li");
-    li.innerHTML = `<span>${new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })} · <b>${esc(h.worker || "—")}</b><br><span class='small'>${h.clients} klientów${h.total ? ", " + fmtQty(h.total, "szt") : ""}${h.totalKg ? ", " + fmtQty(h.totalKg, "kg") : ""} ${h.mailedAt ? "· mail wysłany" : "· <span class='bad'>mail niewysłany</span>"}</span></span><span class='row'><button class='btn' data-r>Wyślij ponownie</button><button class='btn del' data-x>Usuń</button></span>`;
-    li.querySelector("[data-x]").onclick = () => deleteRoute(h.id, new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" }) + " · " + (h.worker || "—"));
+    li.innerHTML = `<span>${new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })} · <b>${esc(h.worker || "—")}</b><br><span class='small'>${h.clients} klientów${h.total ? ", " + fmtQty(h.total, "szt") : ""}${h.totalKg ? ", " + fmtQty(h.totalKg, "kg") : ""} ${h.mailedAt ? "· mail wysłany" : "· <span class='bad'>mail niewysłany</span>"}</span></span><span class='row'><button class='btn' data-r>Wyślij ponownie</button>${local.isAdmin ? "<button class='btn del' data-x>Usuń</button>" : ""}</span>`;
+    if (local.isAdmin) li.querySelector("[data-x]").onclick = () => deleteRoute(h.id, new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" }) + " · " + (h.worker || "—"));
     li.querySelector("[data-r]").onclick = async () => {
       try { await api("trasy", { method: "POST", body: { id: h.id, resend: true } }); alert("Wysłano ponownie."); }
       catch (e) { alert(e.message); }
@@ -641,6 +641,8 @@ function renderGDay(byDay) {
 }
 // przyciski „Usuń trasę” w oknie dnia
 function wireDayDelete() {
+  // usuwanie tras tylko dla administratora
+  if (!local.isAdmin) { $("#gDay").querySelectorAll("[data-route]").forEach(b => b.remove()); return; }
   $("#gDay").querySelectorAll("[data-route]").forEach(b => b.onclick = async () => {
     if (await deleteRoute(b.dataset.route, b.dataset.label)) $("#gDialog").close?.();
   });
@@ -849,7 +851,7 @@ function renderPickups(fresh = new Set()) {
         (phone ? `<a class='btn' href='tel:${esc(phone)}'>📞 Zadzwoń</a>` : "") +
         (c ? `<button class='btn' data-pick>Wpisz pranie</button>` : `<select data-assign><option value=''>Przypisz do klienta…</option>${[...cat().clients].sort((a, b) => a.name.localeCompare(b.name, "pl")).map(x => `<option value='${esc(x.id)}'>${esc(x.name)}</option>`).join("")}</select>`) +
         `<button class='btn ok' data-done>✓ Odebrane</button>`;
-    return `<div class='pk${p.doneAt ? " done" : ""}${fresh.has(p.id) ? " new" : ""}' data-id='${esc(p.id)}'><div class='who'><b>${esc(who)}</b><div class='small'>${esc(meta)}</div>${p.message ? `<div class='msg'>„${esc(p.message)}”</div>` : ""}</div><div class='acts'>${acts}${local.canManage ? "<button class='btn del' data-x title='Usuń zgłoszenie'>✕</button>" : ""}</div></div>`;
+    return `<div class='pk${p.doneAt ? " done" : ""}${fresh.has(p.id) ? " new" : ""}' data-id='${esc(p.id)}'><div class='who'><b>${esc(who)}</b><div class='small'>${esc(meta)}</div>${p.message ? `<div class='msg'>„${esc(p.message)}”</div>` : ""}</div><div class='acts'>${acts}${local.isAdmin ? "<button class='btn del' data-x title='Usuń zgłoszenie'>✕</button>" : ""}</div></div>`;
   };
   $("#pkList").innerHTML = open.length ? open.map(row).join("") : "<div class='pkEmpty'>Brak zgłoszeń do odebrania.</div>";
   $("#pkDoneBox").hidden = !done.length; $("#pkDoneCount").textContent = done.length;

@@ -180,9 +180,9 @@ export async function POST(request: Request) {
 
 const DELETE_PASSWORD = "aaa";
 
-/** Usunięcie całej trasy (np. testowej) razem z jej wpisami. Administrator albo kierownik pralni (z hasłem). */
+/** Usunięcie całej trasy (np. testowej) razem z jej wpisami. Tylko administrator. */
 export async function DELETE(request: Request) {
-  const { denied } = await laundryUser({ manager: true });
+  const { denied } = await laundryUser({ admin: true });
   if (denied) return denied;
 
   const params = new URL(request.url).searchParams;
