@@ -191,6 +191,7 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
     </div>
   </div>
   <div class="card">
+    <div id="voiceBox">
     <button id="mic" class="big">🎤 Wpisuj głosem</button>
     <div class="state" id="state">Naciśnij przycisk i podaj nazwę klienta.</div>
     <div class="current" id="current"></div>
@@ -200,6 +201,7 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
       <button class="btn" id="typedGo">Wyślij</button>
     </div>
     <p class="small" style="margin:8px 0 0">Komendy: <b>„następny klient”</b>, <b>„cofnij”</b>, <b>„zapisz”</b> (zapisuje na magazyn). Przykład: „prześcieradła 20”, „ręczniki 15, poszewki 30”, „pościel 12,5 kilo”, „ręczniki 20 sztuk 8 kilo”.</p>
+    </div>
     <div class="log" id="log"></div>
   </div>
 <!-- zgłoszenia odbioru prania: SMS od klienta albo dodane ręcznie -->
@@ -278,6 +280,7 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
     <h2>Bieżąca trasa <span id="dSideLine" class="small"></span></h2>
     <div id="dSummary" class="small">Brak wpisów.</div>
     <div class="sideBtns">
+      <div id="dDateBox"><label for="dDate" style="margin-top:0">Data trasy</label><input type="date" id="dDate" style="font-size:clamp(16px,1.2vw,22px);padding:10px 12px"></div>
       <button class="btn pri" id="dSend">Koniec trasy – wyślij mail</button>
       <div class="row">
         <button class="btn" id="dCopy">Kopiuj podsumowanie</button>
@@ -392,7 +395,14 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
       (tam też zaznacza, kto jest kierowcą). Podsumowanie trasy kierowcy wysyła się automatycznie na adres ustawiony na serwerze.</p>
     <div class="row" style="margin-top:10px"><a class="btn" href="/">Wybór aplikacji</a><a class="btn" href="/konto">Moje konto</a></div>
   </div>
-  <div class="card">
+  <div class="card adminOnly" style="display:none">
+    <h2>Ustawienia pralni (administrator)</h2>
+    <p class="small" style="margin:0 0 8px">Dotyczą wszystkich pracowników i urządzeń.</p>
+    <label><input type="checkbox" id="aHideVoice" style="width:auto"> Ukryj głosowe wpisywanie (zostaje tylko ekran dotykowy)</label>
+    <label><input type="checkbox" id="aHideDate" style="width:auto"> Ukryj wybór daty trasy (trasa zapisuje się z dzisiejszą datą)</label>
+    <p class="small" id="aSaved" style="margin:6px 0 0"></p>
+  </div>
+  <div class="card" id="voiceSettings">
     <h2>Głos</h2>
     <label><input type="checkbox" id="sRepeat" style="width:auto"> Powtarzaj na głos zapisany asortyment i ilość</label>
   </div>

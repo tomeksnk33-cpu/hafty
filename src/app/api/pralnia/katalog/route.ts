@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { laundryUser } from "@/lib/pralnia/access";
 import { locationOut } from "@/lib/pralnia/location";
 import { normalizePhone } from "@/lib/pralnia/phone";
+import { laundrySettings } from "@/lib/pralnia/settings";
 import { laundryUsage } from "@/lib/pralnia/usage";
 
 // Wspólna lista klientów i asortymentu pralni. Czytać ją musi każdy pracownik
@@ -80,6 +81,7 @@ export async function GET() {
     },
   });
   const lines = await prisma.laundryLine.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } });
+  const settings = await laundrySettings();
 
   const usage = await laundryUsage();
   const items = rows.filter((r) => r.kind === LaundryCatalogKind.ITEM);
@@ -89,6 +91,7 @@ export async function GET() {
   return NextResponse.json({
     user: { name: user.name, isAdmin: user.isAdmin, canManage: user.canManageLaundry, canDrive: user.canDriveLaundry },
     lines,
+    settings,
     clients: rows
       .filter((r) => r.kind === LaundryCatalogKind.CLIENT)
       .map(({ id, name, aliases, phones, lineId, ...loc }) => ({

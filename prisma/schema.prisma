@@ -251,6 +251,16 @@ model LaundryCatalogEntry {
   @@index([kind, name])
 }
 
+/// Ustawienia pralni zmieniane przez administratora (jeden wiersz, id = 1).
+model LaundrySettings {
+  id            Int      @id @default(1)
+  /// Ukrywa głosowe wpisywanie (zostaje tylko dotyk).
+  hideVoice     Boolean  @default(false)
+  /// Ukrywa wybór daty trasy — trasa dostaje dzisiejszą datę.
+  hideRouteDate Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+}
+
 /// Stała trasa kierowcy (np. „Sanok”), do której przypisuje się klientów.
 model LaundryLine {
   id        String   @id @default(cuid())
