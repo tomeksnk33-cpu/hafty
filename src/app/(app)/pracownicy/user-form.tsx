@@ -14,6 +14,7 @@ export type UserDefaults = {
   canManageRealizations: boolean;
   canUseEmbroidery: boolean;
   canUseLaundry: boolean;
+  isLaundryManager: boolean;
   canUseTimeclock: boolean;
   canUseAttendance: boolean;
   active: boolean;
@@ -26,6 +27,7 @@ export const emptyUser: UserDefaults = {
   canManageRealizations: false,
   canUseEmbroidery: true,
   canUseLaundry: true,
+  isLaundryManager: false,
   canUseTimeclock: true,
   canUseAttendance: false,
   active: true,
@@ -61,6 +63,7 @@ export function UserForm({
   const [role, setRole] = useState(defaults.role);
   const [password, setPassword] = useState("");
   const [embroidery, setEmbroidery] = useState(defaults.canUseEmbroidery);
+  const [laundry, setLaundry] = useState(defaults.canUseLaundry);
 
   const isAdmin = role === "ADMIN";
 
@@ -172,7 +175,8 @@ export function UserForm({
                     name: "canUseLaundry",
                     label: "Trasa pralni",
                     hint: "Głosowe zapisywanie trasy, klienci i asortyment pralni.",
-                    defaultChecked: defaults.canUseLaundry,
+                    checked: isAdmin || laundry,
+                    onChange: setLaundry,
                   },
                   {
                     name: "canUseTimeclock",
@@ -238,6 +242,26 @@ export function UserForm({
                 : !embroidery
                   ? "Wymaga dostępu do bazy haftów."
                   : "Nie daje wglądu w ceny ani w konta innych osób."}
+            </span>
+          </span>
+        </label>
+
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="isLaundryManager"
+            defaultChecked={defaults.isLaundryManager}
+            disabled={isAdmin || !laundry}
+            className="mt-0.5 size-4 accent-accent"
+          />
+          <span>
+            Kierownik pralni
+            <span className="block text-xs text-muted">
+              {isAdmin
+                ? "Administrator ma wszystkie uprawnienia."
+                : !laundry
+                  ? "Wymaga dostępu do trasy pralni."
+                  : "Dodaje i zmienia klientów i asortyment pralni, widzi grafik i historię tras. Nie widzi i nie zmienia cen."}
             </span>
           </span>
         </label>

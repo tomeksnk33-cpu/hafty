@@ -38,7 +38,7 @@ async function loadCatalog() {
   try {
     const d = await api("katalog");
     local.catalog = { clients: d.clients, items: d.items };
-    if (d.user) { local.worker = d.user.name; local.isAdmin = !!d.user.isAdmin; showAdmin(); }
+    if (d.user) { local.worker = d.user.name; local.isAdmin = !!d.user.isAdmin; local.canManage = !!(d.user.canManage ?? d.user.isAdmin); showAdmin(); }
     save(); ui();
     $("#cSync").textContent = "Baza wspólna dla wszystkich pracowników. Zsynchronizowano " + new Date().toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }) + ".";
     return true;
@@ -391,15 +391,15 @@ async function deleteRoute(id, label) {
   return true;
 }
 async function loadHistory() {
-  if (!local.isAdmin) return;
+  if (!local.canManage) return;
   const ul = $("#history");
   let list;
   try { list = await api("trasy"); } catch (e) { ul.innerHTML = `<li class='small'>Nie można pobrać: ${esc(e.message)}</li>`; return; }
   ul.innerHTML = list.length ? "" : "<li class='small'>Brak.</li>";
   for (const h of list) {
     const li = document.createElement("li");
-    li.innerHTML = `<span>${new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })} · <b>${esc(h.worker || "—")}</b><br><span class='small'>${h.clients} klientów${h.total ? ", " + fmtQty(h.total, "szt") : ""}${h.totalKg ? ", " + fmtQty(h.totalKg, "kg") : ""} ${h.mailedAt ? "· mail wysłany" : "· <span class='bad'>mail niewysłany</span>"}</span></span><span class='row'><button class='btn' data-r>Wyślij ponownie</button><button class='btn del' data-x>Usuń</button></span>`;
-    li.querySelector("[data-x]").onclick = () => deleteRoute(h.id, new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" }) + " · " + (h.worker || "—"));
+    li.innerHTML = `<span>${new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })} · <b>${esc(h.worker || "—")}</b><br><span class='small'>${h.clients} klientów${h.total ? ", " + fmtQty(h.total, "szt") : ""}${h.totalKg ? ", " + fmtQty(h.totalKg, "kg") : ""} ${h.mailedAt ? "· mail wysłany" : "· <span class='bad'>mail niewysłany</span>"}</span></span><span class='row'><button class='btn' data-r>Wyślij ponownie</button>${local.isAdmin ? "<button class='btn del' data-x>Usuń</button>" : ""}</span>`;
+    if (local.isAdmin) li.querySelector("[data-x]").onclick = () => deleteRoute(h.id, new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" }) + " · " + (h.worker || "—"));
     li.querySelector("[data-r]").onclick = async () => {
       try { await api("trasy", { method: "POST", body: { id: h.id, resend: true } }); alert("Wysłano ponownie."); }
       catch (e) { alert(e.message); }
@@ -543,12 +543,14 @@ $("#sRepeat").checked = local.repeat !== false;
 $("#sRepeat").onchange = e => { local.repeat = e.target.checked; save(); };
 
 // ---------- grafik klientów (administrator) ----------
-// Zwykły pracownik tylko zapisuje trasę; klienci, asortyment, historia i grafik są dla administratora.
+// Zwykły pracownik tylko zapisuje trasę. Kierownik pralni dodatkowo prowadzi klientów,
+// asortyment, historię i grafik (bez cen). Cennik i wartości widzi tylko administrator.
 function showAdmin() {
-  $("#navGrafik").style.display = local.isAdmin ? "" : "none";
+  $("#navGrafik").style.display = local.canManage ? "" : "none";
+  document.querySelectorAll(".managerOnly").forEach(el => { el.style.display = local.canManage ? "" : "none"; });
   document.querySelectorAll(".adminOnly").forEach(el => { el.style.display = local.isAdmin ? "" : "none"; });
   const on = document.querySelector("nav button.on");
-  if (!local.isAdmin && on && on.style.display === "none") document.querySelector("nav button[data-tab=trasa]").click();
+  if (on && on.style.display === "none") document.querySelector("nav button[data-tab=trasa]").click();
 }
 const dk = d => { const x = new Date(d); return x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0"); };
 const g = { year: new Date().getFullYear(), month: new Date().getMonth(), rows: [], client: "", selected: dk(new Date()) };
@@ -557,7 +559,8 @@ async function loadGrafik() {
   const from = new Date(g.year, g.month, 1), to = new Date(g.year, g.month + 1, 1);
   try { g.rows = await api(`grafik?od=${from.toISOString()}&do=${to.toISOString()}`); }
   catch (e) { $("#gNote").textContent = "Nie można pobrać grafiku: " + e.message; g.rows = []; }
-  try { setPrices(await api("cennik")); } catch (e) { setPrices([]); }
+  // ceny pobiera tylko administrator; kierownik pralni widzi same ilości
+  if (local.isAdmin) { try { setPrices(await api("cennik")); } catch (e) { setPrices([]); } } else setPrices([]);
   for (const r of g.rows) r.val = rowValue(r);
   const names = new Set([...cat().clients.map(c => c.name), ...g.rows.map(r => r.client)]);
   const list = [...names].sort((a, b) => a.localeCompare(b, "pl"));
@@ -638,6 +641,8 @@ function renderGDay(byDay) {
 }
 // przyciski „Usuń trasę” w oknie dnia
 function wireDayDelete() {
+  // usuwanie tras tylko dla administratora
+  if (!local.isAdmin) { $("#gDay").querySelectorAll("[data-route]").forEach(b => b.remove()); return; }
   $("#gDay").querySelectorAll("[data-route]").forEach(b => b.onclick = async () => {
     if (await deleteRoute(b.dataset.route, b.dataset.label)) $("#gDialog").close?.();
   });
@@ -647,8 +652,14 @@ function renderGClientSum(rows) {
   const items = sumItems(rows).sort((a, b) => a.label.localeCompare(b.label, "pl"));
   if (!items.length) { $("#gClientSum").innerHTML = "<p class='small'>Brak dostaw w tym miesiącu.</p>"; return; }
   const deliveryDays = new Set(rows.map(r => dk(r.date))).size;
+  const head = `<p class='small' style='margin:0 0 6px'>Dni z dostawą: <b>${deliveryDays}</b></p><table><tr><th>Asortyment</th><th class='n'>Dni</th><th class='n'>Razem</th>`;
+  if (!local.isAdmin) {
+    $("#gClientSum").innerHTML = head + "</tr>" +
+      items.map(i => `<tr><td>${esc(i.label)}</td><td class='n'>${i.days.size}</td><td class='n'><b>${fmtEntry(i)}</b></td></tr>`).join("") + "</table>";
+    return;
+  }
   const total = valueSum(rows);
-  $("#gClientSum").innerHTML = `<p class='small' style='margin:0 0 6px'>Dni z dostawą: <b>${deliveryDays}</b></p><table><tr><th>Asortyment</th><th class='n'>Dni</th><th class='n'>Razem</th><th class='n'>Wartość</th></tr>` +
+  $("#gClientSum").innerHTML = head + "<th class='n'>Wartość</th></tr>" +
     items.map(i => `<tr><td>${esc(i.label)}</td><td class='n'>${i.days.size}</td><td class='n'><b>${fmtEntry(i)}</b></td><td class='n'>${fmtVal(i)}</td></tr>`).join("") +
     `<tr><th colspan=3>Do zapłaty w miesiącu</th><th class='n'>${fmtVal(total)}</th></tr></table>` + missNote(total);
 }
@@ -669,6 +680,14 @@ const fmtAll = list => list.map(fmtEntry).join(" + ");
 const sumVal = list => ({ val: r2(list.reduce((a, i) => a + (i.val || 0), 0)), miss: list.some(i => i.miss) });
 // tabela: asortyment (pogrubiona suma), pod spodem klienci
 function itemTable(rows, head) {
+  if (!local.isAdmin) {
+    let h = `<table><tr><th>${head}</th><th class='n'>Razem</th></tr>`;
+    for (const it of itemRows(rows)) {
+      h += `<tr><td><b>${esc(it.item)}</b></td><td class='n'><b>${fmtAll(it.total)}</b></td></tr>`;
+      for (const c of it.clients) h += `<tr><td class='small'>&nbsp;&nbsp;${esc(c.client)}</td><td class='n small'>${fmtAll(c.entries)}</td></tr>`;
+    }
+    return h + "</table>";
+  }
   let h = `<table><tr><th>${head}</th><th class='n'>Razem</th><th class='n'>Wartość</th></tr>`;
   for (const it of itemRows(rows)) {
     h += `<tr><td><b>${esc(it.item)}</b></td><td class='n'><b>${fmtAll(it.total)}</b></td><td class='n'><b>${fmtVal(sumVal(it.total))}</b></td></tr>`;
@@ -680,6 +699,7 @@ function itemTable(rows, head) {
 function renderGAll() {
   if (!g.rows.length) { $("#gAll").innerHTML = "<p class='small'>Brak tras w tym miesiącu.</p>"; return; }
   // wartość prania każdego klienta w miesiącu (do faktury)
+  if (!local.isAdmin) { $("#gAll").innerHTML = itemTable(g.rows, "Asortyment / klient"); return; }
   const byClient = new Map();
   for (const r of g.rows) { if (!byClient.has(r.client)) byClient.set(r.client, []); byClient.get(r.client).push(r); }
   let h = "<h2 style='margin-top:18px'>Do zapłaty według klientów</h2><table><tr><th>Klient</th><th class='n'>Wartość</th></tr>";
@@ -692,12 +712,14 @@ function renderGAll() {
 $("#gCsv").onclick = () => {
   const q = v => '"' + String(v).replace(/"/g, '""') + '"';
   const num = v => v === "" ? "" : String(v).replace(".", ",");
-  const lines = [["Asortyment", "Klient", "Sztuki", "Kilogramy", "Dni z dostawą", "Cena zł/szt", "Cena zł/kg", "Wartość zł"].map(q).join(";")];
+  // bez cen dla kierownika pralni
+  const money = local.isAdmin;
+  const lines = [["Asortyment", "Klient", "Sztuki", "Kilogramy", "Dni z dostawą", ...(money ? ["Cena zł/szt", "Cena zł/kg", "Wartość zł"] : [])].map(q).join(";")];
   const row = (item, client, i) => {
     const pcs = i.unit === "kg" ? "" : i.qty, kg = i.unit === "kg" ? i.qty : i.unit === "szt_kg" ? i.kg : "";
     const p = client === "RAZEM" ? {} : priceOf(client, item);
     const cell = v => v == null ? "" : num(v);
-    lines.push([item, client, num(pcs), num(kg), i.days.size, cell(i.unit !== "kg" ? p.szt : null), cell(i.unit !== "szt" ? p.kg : null), i.miss ? "" : num(i.val ?? "")].map(q).join(";"));
+    lines.push([item, client, num(pcs), num(kg), i.days.size, ...(money ? [cell(i.unit !== "kg" ? p.szt : null), cell(i.unit !== "szt" ? p.kg : null), i.miss ? "" : num(i.val ?? "")] : [])].map(q).join(";"));
   };
   for (const it of itemRows(g.rows)) {
     for (const c of it.clients) for (const i of c.entries) row(it.item, c.client, i);
@@ -846,7 +868,7 @@ function renderPickups(fresh = new Set()) {
       const c = cat().clients.find(x => x.id === sel.value); if (!c) return;
       await patchPickup(p, { done: false, clientId: c.id });
       // administrator może od razu zapamiętać numer u klienta, żeby kolejne SMS-y rozpoznawały się same
-      if (local.isAdmin && p.phone && !(c.phones || []).includes(p.phone) && confirm(`Zapisać numer ${fmtPhone(p.phone)} u klienta „${c.name}”?`))
+      if (local.canManage && p.phone && !(c.phones || []).includes(p.phone) && confirm(`Zapisać numer ${fmtPhone(p.phone)} u klienta „${c.name}”?`))
         await changeCatalog({ method: "PUT", body: { id: c.id, name: c.name, aliases: c.aliases || [], phones: [...(c.phones || []), p.phone] } });
     };
   });

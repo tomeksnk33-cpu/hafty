@@ -23,7 +23,7 @@ export default async function AccountPage() {
         <div className="flex justify-between gap-4 py-2">
           <dt className="text-muted">Uprawnienia</dt>
           <dd className="font-medium">
-            {roleLabel({ role: user.role, canManageRealizations: user.canManage })}
+            {roleLabel({ role: user.role, canManageRealizations: user.canManage, isLaundryManager: user.canManageLaundry })}
           </dd>
         </div>
       </dl>

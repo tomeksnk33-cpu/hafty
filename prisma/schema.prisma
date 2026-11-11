@@ -30,6 +30,8 @@ model User {
   canUseEmbroidery      Boolean  @default(true)
   /// Dostęp do trasy pralni (/pralnia). Administrator ma zawsze.
   canUseLaundry         Boolean  @default(true)
+  /// Kierownik pralni: dodaje i zmienia klientów i asortyment pralni, widzi grafik, ale nie ceny.
+  isLaundryManager      Boolean  @default(false)
   /// Dostęp do rejestratora czasu pracy (/rejestrator). Administrator ma zawsze.
   canUseTimeclock       Boolean  @default(true)
   /// Dostęp do listy obecności Brzozów (/obecnosc). Administrator ma zawsze.

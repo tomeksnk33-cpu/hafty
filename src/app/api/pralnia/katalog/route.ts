@@ -83,7 +83,7 @@ export async function GET() {
   // `visits` (ile tras z tym klientem) i `items` (asortyment klienta, najczęstszy
   // najpierw) układają przyciski na ekranie dotykowym trasy.
   return NextResponse.json({
-    user: { name: user.name, isAdmin: user.isAdmin },
+    user: { name: user.name, isAdmin: user.isAdmin, canManage: user.canManageLaundry },
     clients: rows
       .filter((r) => r.kind === LaundryCatalogKind.CLIENT)
       .map(({ id, name, aliases, phones, ...loc }) => ({
@@ -106,7 +106,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { denied } = await laundryUser({ admin: true });
+  const { denied } = await laundryUser({ manager: true });
   if (denied) return denied;
 
   const parsed = createSchema.safeParse(await readJson(request));
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const { denied } = await laundryUser({ admin: true });
+  const { denied } = await laundryUser({ manager: true });
   if (denied) return denied;
 
   const parsed = updateSchema.safeParse(await readJson(request));
@@ -142,7 +142,7 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const { denied } = await laundryUser({ admin: true });
+  const { denied } = await laundryUser({ manager: true });
   if (denied) return denied;
 
   const id = new URL(request.url).searchParams.get("id");

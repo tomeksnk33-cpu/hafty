@@ -40,7 +40,7 @@ const routeSchema = z.object({
 
 /** Ostatnie trasy wszystkich pracowników. Tylko dla administratora. */
 export async function GET() {
-  const { denied } = await laundryUser({ admin: true });
+  const { denied } = await laundryUser({ manager: true });
   if (denied) return denied;
 
   const routes = await prisma.laundryRoute.findMany({
@@ -156,8 +156,8 @@ export async function POST(request: Request) {
   let mailError: string | null = null;
   let mailedAt = saved.mailedAt;
 
-  // ponowną wysyłkę już wysłanego maila może zlecić tylko administrator
-  if (!mailedAt || (resend && user.isAdmin)) {
+  // ponowną wysyłkę już wysłanego maila może zlecić administrator albo kierownik pralni
+  if (!mailedAt || (resend && user.canManageLaundry)) {
     if (!mailConfigured()) {
       mailError = "Serwer nie ma skonfigurowanej poczty (SMTP).";
     } else {

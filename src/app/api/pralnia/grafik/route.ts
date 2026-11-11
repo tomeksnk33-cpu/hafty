@@ -7,12 +7,12 @@ export const dynamic = "force-dynamic";
 
 /**
  * Wszystkie dostawy z tras zakończonych między `od` a `do` (ISO), do kalendarza
- * klientów i podsumowania miesiąca. Tylko dla administratora.
+ * klientów i podsumowania miesiąca. Dla administratora i kierownika pralni
+ * (bez cen — ceny zwraca osobno /api/pralnia/cennik, tylko administratorowi).
  */
 export async function GET(request: Request) {
-  const { user, denied } = await laundryUser();
+  const { denied } = await laundryUser({ manager: true });
   if (denied) return denied;
-  if (!user.isAdmin) return NextResponse.json({ error: "Grafik widzi tylko administrator." }, { status: 403 });
 
   const params = new URL(request.url).searchParams;
   const from = new Date(params.get("od") ?? "");

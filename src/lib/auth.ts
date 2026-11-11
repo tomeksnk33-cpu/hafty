@@ -31,6 +31,8 @@ export type SessionUser = {
   canUseTimeclock: boolean;
   /** Dostęp do listy obecności Brzozów. */
   canUseAttendance: boolean;
+  /** Kierownik pralni (lub administrator): klienci, asortyment i grafik pralni, bez cen. */
+  canManageLaundry: boolean;
   /** Dodawanie i edycja haftów, klientów i nici. */
   canManage: boolean;
   /** Ceny, wartości i podsumowania finansowe. */
@@ -45,11 +47,13 @@ function toSessionUser(user: {
   canManageRealizations: boolean;
   canUseEmbroidery: boolean;
   canUseLaundry: boolean;
+  isLaundryManager: boolean;
   canUseTimeclock: boolean;
   canUseAttendance: boolean;
 }): SessionUser {
   const isAdmin = user.role === Role.ADMIN;
   const canUseEmbroidery = isAdmin || user.canUseEmbroidery;
+  const canUseLaundry = isAdmin || user.canUseLaundry;
 
   return {
     id: user.id,
@@ -58,7 +62,8 @@ function toSessionUser(user: {
     role: user.role,
     isAdmin,
     canUseEmbroidery,
-    canUseLaundry: isAdmin || user.canUseLaundry,
+    canUseLaundry,
+    canManageLaundry: isAdmin || (canUseLaundry && user.isLaundryManager),
     canUseTimeclock: isAdmin || user.canUseTimeclock,
     canUseAttendance: isAdmin || user.canUseAttendance,
     canManage: isAdmin || (canUseEmbroidery && user.canManageRealizations),
@@ -174,6 +179,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
       canManageRealizations: true,
       canUseEmbroidery: true,
       canUseLaundry: true,
+      isLaundryManager: true,
       canUseTimeclock: true,
       canUseAttendance: true,
       active: true,

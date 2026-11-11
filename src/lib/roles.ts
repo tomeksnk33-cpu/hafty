@@ -1,9 +1,17 @@
 /** Czytelna nazwa roli do list i profilu. */
-export function roleLabel(user: { role: "ADMIN" | "EMPLOYEE"; canManageRealizations: boolean }) {
+export function roleLabel(user: {
+  role: "ADMIN" | "EMPLOYEE";
+  canManageRealizations: boolean;
+  isLaundryManager?: boolean;
+}) {
   if (user.role === "ADMIN") return "Administrator";
-  if (user.canManageRealizations) return "Pracownik · zarządza haftami";
 
-  return "Pracownik";
+  const extras = [
+    user.canManageRealizations && "zarządza haftami",
+    user.isLaundryManager && "kierownik pralni",
+  ].filter(Boolean);
+
+  return ["Pracownik", ...extras].join(" · ");
 }
 
 /** Z których aplikacji osoba może korzystać — do listy pracowników. */

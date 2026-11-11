@@ -7,9 +7,10 @@ import { getCurrentUser, type SessionUser } from "@/lib/auth";
 /**
  * Zalogowana osoba z dostępem do trasy pralni albo gotowa odpowiedź z błędem:
  * 401, gdy sesja wygasła (telefon pokaże „Zaloguj się ponownie"), 403, gdy
- * konto nie ma uprawnienia do pralni (albo, przy `admin`, nie jest administratorem).
+ * konto nie ma uprawnienia do pralni (albo, przy `admin`, nie jest administratorem;
+ * przy `manager` nie jest kierownikiem pralni ani administratorem).
  */
-export async function laundryUser({ admin = false } = {}): Promise<
+export async function laundryUser({ admin = false, manager = false } = {}): Promise<
   { user: SessionUser; denied?: never } | { user?: never; denied: NextResponse }
 > {
   const user = await getCurrentUser();
@@ -27,6 +28,15 @@ export async function laundryUser({ admin = false } = {}): Promise<
   if (admin && !user.isAdmin) {
     return {
       denied: NextResponse.json({ error: "To może zrobić tylko administrator." }, { status: 403 }),
+    };
+  }
+
+  if (manager && !user.canManageLaundry) {
+    return {
+      denied: NextResponse.json(
+        { error: "To może zrobić tylko kierownik pralni albo administrator." },
+        { status: 403 },
+      ),
     };
   }
 

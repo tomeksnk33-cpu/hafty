@@ -19,6 +19,7 @@ export default async function EmployeesPage() {
       canManageRealizations: true,
       canUseEmbroidery: true,
       canUseLaundry: true,
+      isLaundryManager: true,
       canUseTimeclock: true,
       canUseAttendance: true,
       active: true,

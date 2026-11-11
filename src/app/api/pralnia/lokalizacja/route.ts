@@ -64,7 +64,7 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const { denied } = await laundryUser({ admin: true });
+  const { denied } = await laundryUser({ manager: true });
   if (denied) return denied;
 
   const clientId = new URL(request.url).searchParams.get("clientId");
