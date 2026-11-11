@@ -202,6 +202,20 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
     <p class="small" style="margin:8px 0 0">Komendy: <b>„następny klient”</b>, <b>„cofnij”</b>, <b>„zapisz”</b> (zapisuje na magazyn). Przykład: „prześcieradła 20”, „ręczniki 15, poszewki 30”, „pościel 12,5 kilo”, „ręczniki 20 sztuk 8 kilo”.</p>
     <div class="log" id="log"></div>
   </div>
+<!-- zgłoszenia odbioru prania: SMS od klienta albo dodane ręcznie -->
+  <div class="card pickups" id="pickups">
+    <div class="row" style="justify-content:space-between">
+      <h2 class="tStep" style="margin:0">📞 Do odebrania <span id="pkCount"></span></h2>
+      <button class="btn tBack" id="pkAddOpen">+ Dodaj zgłoszenie</button>
+    </div>
+    <div id="pkAdd" class="pkAdd" hidden>
+      <select id="pkClient"></select>
+      <input id="pkMsg" placeholder="Uwagi (opcjonalnie), np. 3 worki, po 12:00">
+      <div class="row"><button class="btn pri tBack" id="pkAddGo">Dodaj</button><button class="btn tBack" id="pkAddCancel">Anuluj</button></div>
+    </div>
+    <div id="pkList"></div>
+    <details id="pkDoneBox" hidden><summary class="small">Odebrane w ostatniej dobie (<span id="pkDoneCount"></span>)</summary><div id="pkDone"></div></details>
+  </div>
   <div class="card" id="stockCard">
     <div class="row" style="justify-content:space-between"><h2 style="margin:0">📦 Stan magazynu <span id="stCount"></span></h2><button class="btn" id="stRefresh">Odśwież</button></div>
     <div id="stList" class="scroll" style="margin-top:8px"></div>
@@ -239,7 +253,7 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
         <div class="tClientName" id="dLineName"></div>
       </div>
       <div id="dClientStep">
-        <h2 class="tStep">2. Klienci na trasie</h2>
+        <h2 class="tStep">2. Klienci z praniem do zawiezienia</h2>
         <div class="tiles" id="dClients"></div>
       </div>
       <div id="dItemStep" hidden>
@@ -252,20 +266,6 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
         <div class="tiles" id="dItems"></div>
         <button class="btn tMore" id="dAll">Zabierz wszystko dla tego klienta</button>
       </div>
-    </div>
-  <!-- zgłoszenia odbioru prania: SMS od klienta albo dodane ręcznie -->
-    <div class="card pickups" id="pickups">
-      <div class="row" style="justify-content:space-between">
-        <h2 class="tStep" style="margin:0">📞 Do odebrania <span id="pkCount"></span></h2>
-        <button class="btn tBack" id="pkAddOpen">+ Dodaj zgłoszenie</button>
-      </div>
-      <div id="pkAdd" class="pkAdd" hidden>
-        <select id="pkClient"></select>
-        <input id="pkMsg" placeholder="Uwagi (opcjonalnie), np. 3 worki, po 12:00">
-        <div class="row"><button class="btn pri tBack" id="pkAddGo">Dodaj</button><button class="btn tBack" id="pkAddCancel">Anuluj</button></div>
-      </div>
-      <div id="pkList"></div>
-      <details id="pkDoneBox" hidden><summary class="small">Odebrane w ostatniej dobie (<span id="pkDoneCount"></span>)</summary><div id="pkDone"></div></details>
     </div>
   </div>
   <div class="card managerOnly" style="display:none">
@@ -321,7 +321,7 @@ dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
   </div>
   <p class="small" id="cSync"></p>
   <div class="card"><h2>Klienci (<span id="cCount">0</span>)</h2>
-    <p class="small" style="margin:0 0 6px">📍 <b>Pobierz dane geolokalizacji</b> zapisuje miejsce, w którym teraz stoi telefon — naciśnij, będąc u klienta. Kierowca może to zrobić też w zakładce <b>Trasa</b> po podaniu klienta.</p>
+    <p class="small" style="margin:0 0 6px">📍 <b>Pobierz dane geolokalizacji</b> zapisuje miejsce, w którym teraz stoi telefon — naciśnij, będąc u klienta. Kierowca widzi potem przycisk <b>Nawiguj do klienta</b>.</p>
     <ul class="list" id="cList"></ul></div>
 </section>
 
