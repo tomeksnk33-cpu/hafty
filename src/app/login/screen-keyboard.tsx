@@ -29,7 +29,7 @@ type Props = {
 
 const keyBase =
   "flex h-14 min-w-0 flex-1 items-center justify-center rounded-lg border text-xl font-medium shadow-sm select-none touch-manipulation sm:h-16 sm:text-2xl";
-const keyClass = `${keyBase} border-line bg-surface text-ink active:bg-paper`;
+const keyClass = `${keyBase} border-line bg-paper text-ink active:bg-line`;
 const keyOn = `${keyBase} border-accent bg-accent-soft text-accent`;
 const keyEnter = `${keyBase} border-accent bg-accent text-white active:bg-accent/90`;
 
@@ -76,19 +76,29 @@ export function ScreenKeyboard({ target, onEnter, onClose }: Props) {
     <div
       role="group"
       aria-label="Klawiatura ekranowa"
-      className="relative left-1/2 mt-4 w-[min(960px,calc(100vw-1rem))] -translate-x-1/2 space-y-2 rounded-xl border border-line bg-paper p-2 sm:p-3"
+      className="w-full space-y-2 rounded-xl border border-line bg-surface p-2 shadow-sm sm:p-3"
       onPointerDown={keep}
       onMouseDown={keep}
     >
       {rows.map((row, i) => (
         <div key={i} className="flex gap-1.5 sm:gap-2">
           {row.map((k) => (
-            <button key={k} type="button" className={keyClass} onClick={() => type(symbols ? k : letter(k))}>
+            <button
+              key={k}
+              type="button"
+              className={keyClass}
+              onClick={() => type(symbols ? k : letter(k))}
+            >
               {symbols ? k : letter(k)}
             </button>
           ))}
           {i === rows.length - 1 ? (
-            <button type="button" className={`${keyClass} flex-[1.6] text-lg`} onClick={backspace} aria-label="Usuń znak">
+            <button
+              type="button"
+              className={`${keyClass} flex-[1.6] text-lg`}
+              onClick={backspace}
+              aria-label="Usuń znak"
+            >
               ⌫
             </button>
           ) : null}
@@ -98,7 +108,12 @@ export function ScreenKeyboard({ target, onEnter, onClose }: Props) {
       {!symbols ? (
         <div className="flex gap-1.5 sm:gap-2">
           {POLISH.map((k) => (
-            <button key={k} type="button" className={keyClass} onClick={() => type(letter(k))}>
+            <button
+              key={k}
+              type="button"
+              className={keyClass}
+              onClick={() => type(letter(k))}
+            >
               {letter(k)}
             </button>
           ))}
@@ -122,13 +137,25 @@ export function ScreenKeyboard({ target, onEnter, onClose }: Props) {
         >
           Caps
         </button>
-        <button type="button" className={`${keyClass} flex-[1.4] text-sm sm:text-base`} onClick={() => setSymbols((s) => !s)}>
+        <button
+          type="button"
+          className={`${keyClass} flex-[1.4] text-sm sm:text-base`}
+          onClick={() => setSymbols((s) => !s)}
+        >
           {symbols ? "abc" : "#+="}
         </button>
-        <button type="button" className={`${keyClass} flex-[3] text-sm sm:text-base`} onClick={() => type(" ")}>
+        <button
+          type="button"
+          className={`${keyClass} flex-[3] text-sm sm:text-base`}
+          onClick={() => type(" ")}
+        >
           spacja
         </button>
-        <button type="button" className={`${keyClass} flex-[1.4] text-sm sm:text-base`} onClick={onClose}>
+        <button
+          type="button"
+          className={`${keyClass} flex-[1.4] text-sm sm:text-base`}
+          onClick={onClose}
+        >
           Ukryj
         </button>
         <button

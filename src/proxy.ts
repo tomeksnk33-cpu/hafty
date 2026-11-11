@@ -33,6 +33,7 @@ export const config = {
     // dodawaniu aplikacji do ekranu głównego. Codzienny raport rejestratora
     // wywołuje Vercel Cron, też bez ciasteczka. SMS-y od klientów pralni
     // przekazuje bramka SMS (chroni je klucz w adresie, api/pralnia/sms).
-    "/((?!login|_next/static|_next/image|uploads/|brand/|favicon.ico|pralnia/manifest\\.webmanifest|pralnia/icon|api/rejestrator/cron|api/pralnia/sms).*)",
+    // Przycisk wyłączania komputera (kiosk/) działa już na ekranie logowania.
+    "/((?!login|_next/static|_next/image|uploads/|brand/|favicon.ico|pralnia/manifest\\.webmanifest|pralnia/icon|api/rejestrator/cron|api/pralnia/sms|kiosk).*)",
   ],
 };
