@@ -39,6 +39,7 @@ function readForm(formData: FormData) {
     canManageRealizations: formData.get("canManageRealizations") === "on",
     canUseEmbroidery: formData.get("canUseEmbroidery") === "on",
     canUseLaundry: formData.get("canUseLaundry") === "on",
+    isLaundryManager: formData.get("isLaundryManager") === "on",
     canUseTimeclock: formData.get("canUseTimeclock") === "on",
     canUseAttendance: formData.get("canUseAttendance") === "on",
     active: formData.get("active") === "on",
