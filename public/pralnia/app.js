@@ -39,6 +39,7 @@ async function loadCatalog() {
   try {
     const d = await api("katalog");
     local.catalog = { clients: d.clients, items: d.items, lines: d.lines || [] };
+    local.settings = d.settings || {}; applySettings();
     if (d.user) { local.worker = d.user.name; local.isAdmin = !!d.user.isAdmin; local.canManage = !!(d.user.canManage ?? d.user.isAdmin); local.canDrive = !!(d.user.canDrive ?? d.user.isAdmin); showAdmin(true); }
     save(); ui(); renderDrive(); renderLines();
     $("#cSync").textContent = "Baza wspólna dla wszystkich pracowników. Zsynchronizowano " + new Date().toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }) + ".";
@@ -1229,14 +1230,42 @@ function renderDriveSummary() {
 }
 $("#dCopy").onclick = () => { navigator.clipboard?.writeText(summaryText(local.drv.route)); };
 $("#dClear").onclick = () => { if (confirm("Usunąć wszystkie wpisy bieżącej trasy? Pranie wróci do magazynu.")) { local.drv.route = []; local.drv.routeId = null; drv.client = null; save(); renderDrive(); } };
+// ---------- ustawienia pralni (administrator) i data trasy ----------
+const todayKey = () => dk(new Date());
+function applySettings() {
+  const st = local.settings || {};
+  $("#voiceBox").hidden = !!st.hideVoice; $("#voiceSettings").hidden = !!st.hideVoice;
+  if (st.hideVoice && running) stop();
+  $("#dDateBox").hidden = !!st.hideRouteDate;
+  if (!$("#dDate").value) $("#dDate").value = todayKey();
+  $("#aHideVoice").checked = !!st.hideVoice; $("#aHideDate").checked = !!st.hideRouteDate;
+}
+async function saveSettings(body) {
+  try { local.settings = await api("ustawienia", { method: "PUT", body }); save(); $("#aSaved").textContent = "Zapisano."; }
+  catch (e) { alert("Nie zapisano: " + e.message); }
+  applySettings();
+}
+$("#aHideVoice").onchange = e => saveSettings({ hideVoice: e.target.checked });
+$("#aHideDate").onchange = e => saveSettings({ hideRouteDate: e.target.checked });
+// data trasy: wybrany dzień z obecną godziną (żeby kolejność tras w dniu została); ukryta albo dzisiejsza — teraz
+function routeDate() {
+  const v = $("#dDate").value;
+  if ((local.settings || {}).hideRouteDate || !v || v === todayKey()) return new Date().toISOString();
+  const [y, m, d] = v.split("-").map(Number), now = new Date();
+  return new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
+}
+
 $("#dSend").onclick = async () => {
   const d = local.drv;
   if (!d.route.length) { alert("Trasa jest pusta."); return; }
-  if (!confirm("Zakończyć trasę i wysłać podsumowanie?")) return;
+  const date = routeDate();
+  const other = dk(date) !== todayKey() ? ` z datą ${new Date(date).toLocaleDateString("pl-PL")}` : "";
+  if (!confirm(`Zakończyć trasę${other} i wysłać podsumowanie?`)) return;
   const device = await deviceHints();
   const named = d.line && d.line !== ALL && d.line !== NONE ? lineName(d.line) : undefined;
-  local.pending.push({ kind: "trasa", id: d.routeId || newId(), line: named, worker: local.worker, date: new Date().toISOString(), device, route: plain(d.route) });
+  local.pending.push({ kind: "trasa", id: d.routeId || newId(), line: named, worker: local.worker, date, device, route: plain(d.route) });
   d.route = []; d.routeId = null; d.line = ""; drv.client = null; save(); renderDrive();
+  $("#dDate").value = todayKey();
   const ok = await flushPending(true);
   alert(ok ? "Koniec trasy. Podsumowanie wysłane." : "Nie udało się wysłać. Trasa czeka na tym urządzeniu i wyśle się sama, gdy wróci połączenie.");
 };
@@ -1274,6 +1303,6 @@ $("#lAdd").onclick = async () => {
 
 window.addEventListener("online", () => flushPending(false));
 renderList("c"); renderList("a"); ui();
-renderDrive(); renderLines();
+renderDrive(); renderLines(); applySettings();
 loadCatalog().then(ok => { if (ok) flushPending(false); loadHistory(); loadPickups(); loadStock(); });
 window.__pralnia = { handle, parseItems, findClient, local };
