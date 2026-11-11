@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { Prisma } from "@/generated/prisma/client";
-import { LaundryCatalogKind, LaundryUnit } from "@/generated/prisma/enums";
+import { LaundryCatalogKind, LaundryStockKind, LaundryUnit } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { laundryUser } from "@/lib/pralnia/access";
 import { describeDevice } from "@/lib/pralnia/device";
@@ -12,6 +12,8 @@ import { renderRouteMail } from "@/lib/pralnia/summary";
 
 const routeSchema = z.object({
   id: z.string().trim().min(1).max(64),
+  /** Nazwa stałej trasy, którą wybrał kierowca. */
+  line: z.string().trim().max(80).optional(),
   /** Ponowna wysyłka maila dla już zapisanej trasy. */
   resend: z.boolean().optional(),
   date: z.iso.datetime().optional(),
@@ -51,6 +53,7 @@ export async function GET() {
       workerName: true,
       finishedAt: true,
       mailedAt: true,
+      lineName: true,
       entries: { select: { clientName: true, quantity: true, unit: true, weightKg: true } },
     },
   });
@@ -59,6 +62,7 @@ export async function GET() {
     routes.map((r) => ({
       id: r.id,
       worker: r.workerName,
+      line: r.lineName,
       date: r.finishedAt,
       mailedAt: r.mailedAt,
       count: r.entries.length,
@@ -89,7 +93,7 @@ export async function POST(request: Request) {
   const parsed = routeSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Nieprawidłowe dane trasy." }, { status: 400 });
 
-  const { id, resend, date, device, route: lines } = parsed.data;
+  const { id, resend, date, device, line: lineName, route: lines } = parsed.data;
 
   let saved = await prisma.laundryRoute.findUnique({
     where: { id },
@@ -97,6 +101,10 @@ export async function POST(request: Request) {
   });
 
   if (!saved) {
+    // nową trasę (z wydaniem prania z magazynu) wysyła kierowca albo administrator
+    if (!user.canDriveLaundry) {
+      return NextResponse.json({ error: "Trasę może wysłać tylko kierowca albo administrator." }, { status: 403 });
+    }
     if (lines.length === 0) return NextResponse.json({ error: "Pusta trasa." }, { status: 400 });
 
     // Jednostka z asortymentu na serwerze; telefon podaje ją na wypadek
@@ -113,32 +121,46 @@ export async function POST(request: Request) {
       catalogUnits.get(line.item.toLowerCase()) ??
       (line.unit === "kg" ? LaundryUnit.KG : line.unit === "szt_kg" ? LaundryUnit.SZT_KG : LaundryUnit.SZT);
 
+    const entries = lines.map((line, position) => {
+      let unit = unitOf(line);
+      // pozycję przestawiono na „szt. i kg” w trakcie trasy, a telefon podał tylko jedną liczbę
+      if (unit === LaundryUnit.SZT_KG && line.kg === undefined) {
+        unit = line.unit === "kg" ? LaundryUnit.KG : LaundryUnit.SZT;
+      }
+      const kgOnly = unit === LaundryUnit.KG;
+      return {
+        position,
+        clientName: line.client,
+        itemName: line.item,
+        unit,
+        // kilogramy z dokładnością do 0,01, sztuki w całości
+        quantity: kgOnly ? Math.round(line.qty * 100) / 100 : Math.round(line.qty),
+        weightKg: unit === LaundryUnit.SZT_KG ? Math.round((line.kg ?? 0) * 100) / 100 : null,
+      };
+    });
+
     try {
       saved = await prisma.laundryRoute.create({
         data: {
           id,
           userId: user.id,
           workerName: user.name,
+          lineName: lineName || null,
           device: describeDevice(request.headers.get("user-agent"), device),
           finishedAt: date ? new Date(date) : new Date(),
-          entries: {
-            create: lines.map((line, position) => {
-              let unit = unitOf(line);
-              // pozycję przestawiono na „szt. i kg” w trakcie trasy, a telefon podał tylko jedną liczbę
-              if (unit === LaundryUnit.SZT_KG && line.kg === undefined) {
-                unit = line.unit === "kg" ? LaundryUnit.KG : LaundryUnit.SZT;
-              }
-              const kgOnly = unit === LaundryUnit.KG;
-              return {
-                position,
-                clientName: line.client,
-                itemName: line.item,
-                unit,
-                // kilogramy z dokładnością do 0,01, sztuki w całości
-                quantity: kgOnly ? Math.round(line.qty * 100) / 100 : Math.round(line.qty),
-                weightKg: unit === LaundryUnit.SZT_KG ? Math.round((line.kg ?? 0) * 100) / 100 : null,
-              };
-            }),
+          entries: { create: entries },
+          // zawiezione pranie schodzi z magazynu (usunięcie trasy je przywraca)
+          stockMoves: {
+            create: entries.map((e) => ({
+              kind: LaundryStockKind.DELIVERED,
+              clientName: e.clientName,
+              itemName: e.itemName,
+              unit: e.unit,
+              quantity: -e.quantity,
+              weightKg: e.weightKg === null ? null : -e.weightKg,
+              workerName: user.name,
+              userId: user.id,
+            })),
           },
         },
         include: { entries: { orderBy: { position: "asc" } } },
@@ -162,7 +184,7 @@ export async function POST(request: Request) {
       mailError = "Serwer nie ma skonfigurowanej poczty (SMTP).";
     } else {
       try {
-        await sendMail(renderRouteMail({ workerName: saved.workerName, device: saved.device, finishedAt: saved.finishedAt, lines: saved.entries }));
+        await sendMail(renderRouteMail({ workerName: saved.workerName, lineName: saved.lineName, device: saved.device, finishedAt: saved.finishedAt, lines: saved.entries }));
         mailedAt = new Date();
         await prisma.laundryRoute.update({ where: { id }, data: { mailedAt } });
       } catch (error) {

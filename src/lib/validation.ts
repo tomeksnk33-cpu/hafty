@@ -131,6 +131,7 @@ export const userCreateSchema = z.object({
   canUseEmbroidery: z.boolean(),
   canUseLaundry: z.boolean(),
   isLaundryManager: z.boolean(),
+  isLaundryDriver: z.boolean(),
   canUseTimeclock: z.boolean(),
   canUseAttendance: z.boolean(),
 });
@@ -145,6 +146,7 @@ export const userUpdateSchema = z.object({
   canUseEmbroidery: z.boolean(),
   canUseLaundry: z.boolean(),
   isLaundryManager: z.boolean(),
+  isLaundryDriver: z.boolean(),
   canUseTimeclock: z.boolean(),
   canUseAttendance: z.boolean(),
   active: z.boolean(),

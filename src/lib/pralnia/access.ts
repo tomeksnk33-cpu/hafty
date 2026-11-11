@@ -10,7 +10,7 @@ import { getCurrentUser, type SessionUser } from "@/lib/auth";
  * konto nie ma uprawnienia do pralni (albo, przy `admin`, nie jest administratorem;
  * przy `manager` nie jest kierownikiem pralni ani administratorem).
  */
-export async function laundryUser({ admin = false, manager = false } = {}): Promise<
+export async function laundryUser({ admin = false, manager = false, driver = false } = {}): Promise<
   { user: SessionUser; denied?: never } | { user?: never; denied: NextResponse }
 > {
   const user = await getCurrentUser();
@@ -37,6 +37,12 @@ export async function laundryUser({ admin = false, manager = false } = {}): Prom
         { error: "To może zrobić tylko kierownik pralni albo administrator." },
         { status: 403 },
       ),
+    };
+  }
+
+  if (driver && !user.canDriveLaundry) {
+    return {
+      denied: NextResponse.json({ error: "Trasę może wysłać tylko kierowca albo administrator." }, { status: 403 }),
     };
   }
 

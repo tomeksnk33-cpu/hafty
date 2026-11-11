@@ -15,6 +15,7 @@ export type UserDefaults = {
   canUseEmbroidery: boolean;
   canUseLaundry: boolean;
   isLaundryManager: boolean;
+  isLaundryDriver: boolean;
   canUseTimeclock: boolean;
   canUseAttendance: boolean;
   active: boolean;
@@ -28,6 +29,7 @@ export const emptyUser: UserDefaults = {
   canUseEmbroidery: true,
   canUseLaundry: true,
   isLaundryManager: false,
+  isLaundryDriver: false,
   canUseTimeclock: true,
   canUseAttendance: false,
   active: true,
@@ -174,7 +176,7 @@ export function UserForm({
                   {
                     name: "canUseLaundry",
                     label: "Trasa pralni",
-                    hint: "Głosowe zapisywanie trasy, klienci i asortyment pralni.",
+                    hint: "Wpisywanie wypranego prania na magazyn (głosem albo dotykiem).",
                     checked: isAdmin || laundry,
                     onChange: setLaundry,
                   },
@@ -261,7 +263,27 @@ export function UserForm({
                 ? "Administrator ma wszystkie uprawnienia."
                 : !laundry
                   ? "Wymaga dostępu do trasy pralni."
-                  : "Dodaje i zmienia klientów i asortyment pralni, widzi grafik i historię tras. Nie widzi i nie zmienia cen."}
+                  : "Dodaje i zmienia klientów, asortyment i trasy pralni, poprawia stan magazynu, widzi grafik i historię tras. Nie widzi i nie zmienia cen."}
+            </span>
+          </span>
+        </label>
+
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="isLaundryDriver"
+            defaultChecked={defaults.isLaundryDriver}
+            disabled={isAdmin || !laundry}
+            className="mt-0.5 size-4 accent-accent"
+          />
+          <span>
+            Kierowca pralni
+            <span className="block text-xs text-muted">
+              {isAdmin
+                ? "Administrator ma wszystkie uprawnienia."
+                : !laundry
+                  ? "Wymaga dostępu do trasy pralni."
+                  : "Wybiera trasę, widzi wyprane pranie w magazynie i zgłoszenia do odebrania, wydaje pranie z magazynu i wysyła trasę."}
             </span>
           </span>
         </label>

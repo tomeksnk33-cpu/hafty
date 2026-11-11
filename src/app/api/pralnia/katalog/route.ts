@@ -35,6 +35,8 @@ const entrySchema = z.object({
         ? undefined
         : [...new Set(list.map(normalizePhone).filter((p): p is string => !!p))].slice(0, 10),
     ),
+  /** Tylko klient: stała trasa kierowcy (null = bez trasy). */
+  lineId: z.string().min(1).nullable().optional(),
 });
 
 const UNIT = { szt: LaundryUnit.SZT, kg: LaundryUnit.KG, szt_kg: LaundryUnit.SZT_KG } as const;
@@ -74,8 +76,10 @@ export async function GET() {
       locatedAt: true,
       locatedBy: true,
       phones: true,
+      lineId: true,
     },
   });
+  const lines = await prisma.laundryLine.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } });
 
   const usage = await laundryUsage();
   const items = rows.filter((r) => r.kind === LaundryCatalogKind.ITEM);
@@ -83,14 +87,16 @@ export async function GET() {
   // `visits` (ile tras z tym klientem) i `items` (asortyment klienta, najczęstszy
   // najpierw) układają przyciski na ekranie dotykowym trasy.
   return NextResponse.json({
-    user: { name: user.name, isAdmin: user.isAdmin, canManage: user.canManageLaundry },
+    user: { name: user.name, isAdmin: user.isAdmin, canManage: user.canManageLaundry, canDrive: user.canDriveLaundry },
+    lines,
     clients: rows
       .filter((r) => r.kind === LaundryCatalogKind.CLIENT)
-      .map(({ id, name, aliases, phones, ...loc }) => ({
+      .map(({ id, name, aliases, phones, lineId, ...loc }) => ({
         id,
         name,
         aliases,
         phones,
+        lineId,
         location: locationOut(loc),
         visits: usage.visits(name),
         items: usage.clientItems({ id, name }, items),
@@ -112,9 +118,16 @@ export async function POST(request: Request) {
   const parsed = createSchema.safeParse(await readJson(request));
   if (!parsed.success) return invalid(parsed.error);
 
-  const { kind, name, aliases, unit, phones } = parsed.data;
+  const { kind, name, aliases, unit, phones, lineId } = parsed.data;
   const entry = await prisma.laundryCatalogEntry.create({
-    data: { kind: KIND[kind], name, aliases, unit: UNIT[unit ?? "szt"], phones: kind === "clients" ? phones ?? [] : [] },
+    data: {
+      kind: KIND[kind],
+      name,
+      aliases,
+      unit: UNIT[unit ?? "szt"],
+      phones: kind === "clients" ? phones ?? [] : [],
+      lineId: kind === "clients" ? lineId ?? null : null,
+    },
     select: { id: true, name: true, aliases: true, unit: true },
   });
 
@@ -128,15 +141,29 @@ export async function PUT(request: Request) {
   const parsed = updateSchema.safeParse(await readJson(request));
   if (!parsed.success) return invalid(parsed.error);
 
-  const { id, name, aliases, unit, phones } = parsed.data;
-  const { count } = await prisma.laundryCatalogEntry.updateMany({
-    where: { id },
-    data: { name, aliases, ...(unit ? { unit: UNIT[unit] } : {}), ...(phones ? { phones } : {}) },
-  });
-
-  if (count === 0) {
+  const { id, name, aliases, unit, phones, lineId } = parsed.data;
+  const before = await prisma.laundryCatalogEntry.findUnique({ where: { id }, select: { kind: true, name: true } });
+  if (!before) {
     return NextResponse.json({ error: "Ktoś inny usunął tę pozycję. Odświeżono listę." }, { status: 404 });
   }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.laundryCatalogEntry.update({
+      where: { id },
+      data: {
+        name,
+        aliases,
+        ...(unit ? { unit: UNIT[unit] } : {}),
+        ...(phones ? { phones } : {}),
+        ...(lineId !== undefined && before.kind === LaundryCatalogKind.CLIENT ? { lineId } : {}),
+      },
+    });
+    // stan magazynu jest zapisany po nazwach — po zmianie nazwy przenosimy go razem z nią
+    if (before.name !== name) {
+      const field = before.kind === LaundryCatalogKind.CLIENT ? "clientName" : "itemName";
+      await tx.laundryStockMove.updateMany({ where: { [field]: before.name }, data: { [field]: name } });
+    }
+  });
 
   return NextResponse.json({ id, name, aliases, unit });
 }

@@ -3,12 +3,14 @@ export function roleLabel(user: {
   role: "ADMIN" | "EMPLOYEE";
   canManageRealizations: boolean;
   isLaundryManager?: boolean;
+  isLaundryDriver?: boolean;
 }) {
   if (user.role === "ADMIN") return "Administrator";
 
   const extras = [
     user.canManageRealizations && "zarządza haftami",
     user.isLaundryManager && "kierownik pralni",
+    user.isLaundryDriver && "kierowca",
   ].filter(Boolean);
 
   return ["Pracownik", ...extras].join(" · ");

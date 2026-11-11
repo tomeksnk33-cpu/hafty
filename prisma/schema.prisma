@@ -32,6 +32,8 @@ model User {
   canUseLaundry         Boolean  @default(true)
   /// Kierownik pralni: dodaje i zmienia klientów i asortyment pralni, widzi grafik, ale nie ceny.
   isLaundryManager      Boolean  @default(false)
+  /// Kierowca pralni: wybiera trasę i rozwozi wyprane pranie z magazynu.
+  isLaundryDriver       Boolean  @default(false)
   /// Dostęp do rejestratora czasu pracy (/rejestrator). Administrator ma zawsze.
   canUseTimeclock       Boolean  @default(true)
   /// Dostęp do listy obecności Brzozów (/obecnosc). Administrator ma zawsze.
@@ -141,7 +143,7 @@ model Photo {
   position      Int      @default(0)
   createdAt     DateTime @default(now())
 
-  realization Realization   @relation(fields: [realizationId], references: [id], onDelete: Cascade)
+  realization Realization    @relation(fields: [realizationId], references: [id], onDelete: Cascade)
   markers     ThreadMarker[]
 
   @@index([realizationId, position])
@@ -218,13 +220,13 @@ enum LaundryUnit {
 
 /// Klient albo pozycja asortymentu pralni — wspólna lista dla wszystkich pracowników.
 model LaundryCatalogEntry {
-  id        String             @id @default(cuid())
-  kind      LaundryCatalogKind
-  name      String
+  id               String             @id @default(cuid())
+  kind             LaundryCatalogKind
+  name             String
   /// Inne nazwy i formy odmiany, po których rozpoznajemy wypowiedź.
-  aliases   String[]           @default([])
+  aliases          String[]           @default([])
   /// Tylko dla asortymentu: sztuki albo kilogramy.
-  unit      LaundryUnit        @default(SZT)
+  unit             LaundryUnit        @default(SZT)
   /// Tylko dla klienta: miejsce dostawy z GPS telefonu (stopnie WGS84),
   /// do późniejszego planowania trasy kierowcy.
   latitude         Float?
@@ -235,15 +237,63 @@ model LaundryCatalogEntry {
   /// Imię pracownika, który zapisał lokalizację.
   locatedBy        String?
   /// Tylko dla klienta: numery telefonów (+48…), po których rozpoznajemy SMS-y.
-  phones           String[]  @default([])
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  phones           String[]           @default([])
+  /// Tylko dla klienta: trasa kierowcy, na której leży klient.
+  lineId           String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
-  clientPrices LaundryPrice[] @relation("CenaKlienta")
-  itemPrices   LaundryPrice[] @relation("CenaAsortymentu")
+  clientPrices LaundryPrice[]  @relation("CenaKlienta")
+  itemPrices   LaundryPrice[]  @relation("CenaAsortymentu")
   pickups      LaundryPickup[]
+  line         LaundryLine?    @relation(fields: [lineId], references: [id], onDelete: SetNull)
 
   @@index([kind, name])
+}
+
+/// Stała trasa kierowcy (np. „Sanok”), do której przypisuje się klientów.
+model LaundryLine {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  clients LaundryCatalogEntry[]
+}
+
+enum LaundryStockKind {
+  /// Wyprane i odłożone na magazyn (wpis pracownika pralni).
+  WASHED
+  /// Wydane kierowcy i zawiezione do klienta (wpis trasy).
+  DELIVERED
+  /// Ręczna korekta stanu przez kierownika.
+  CORRECTION
+}
+
+/// Ruch na magazynie czystego prania. Stan klienta = suma ruchów
+/// (wyprane i korekty na plus, dostawy na minus — zapisane ze znakiem).
+model LaundryStockMove {
+  id         String           @id @default(cuid())
+  kind       LaundryStockKind
+  clientName String
+  itemName   String
+  unit       LaundryUnit      @default(SZT)
+  /// Sztuki albo (dla KG) kilogramy, ze znakiem.
+  quantity   Float
+  /// Waga ze znakiem, tylko dla SZT_KG.
+  weightKg   Float?
+  workerName String
+  userId     String?
+  /// Partia przyjęcia nadana przez urządzenie (ponowne wysłanie nie dubluje).
+  batchId    String?
+  /// Trasa, która zabrała pranie; usunięcie trasy zwraca pranie na magazyn.
+  routeId    String?
+  createdAt  DateTime         @default(now())
+
+  route LaundryRoute? @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@index([clientName, itemName])
+  @@index([batchId])
+  @@index([createdAt])
 }
 
 /// Cena prania jednej pozycji asortymentu u jednego klienta (zł netto). Dla
@@ -302,10 +352,13 @@ model LaundryRoute {
   device     String?
   finishedAt DateTime
   mailedAt   DateTime?
+  /// Nazwa stałej trasy wybranej przez kierowcę (np. „Sanok”).
+  lineName   String?
   createdAt  DateTime  @default(now())
 
-  user    User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
-  entries LaundryRouteEntry[]
+  user       User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  entries    LaundryRouteEntry[]
+  stockMoves LaundryStockMove[]
 
   @@index([finishedAt])
 }
@@ -313,7 +366,7 @@ model LaundryRoute {
 /// Jeden wpis trasy. Nazwy zapisujemy tekstem z chwili trasy, żeby zmiana
 /// albo usunięcie klienta w katalogu nie zmieniała historii.
 model LaundryRouteEntry {
-  id         String @id @default(cuid())
+  id         String      @id @default(cuid())
   routeId    String
   position   Int
   clientName String
