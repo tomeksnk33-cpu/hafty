@@ -40,7 +40,7 @@ async function loadCatalog() {
     const d = await api("katalog");
     local.catalog = { clients: d.clients, items: d.items, lines: d.lines || [] };
     local.settings = d.settings || {}; applySettings();
-    if (d.user) { local.worker = d.user.name; local.isAdmin = !!d.user.isAdmin; local.canManage = !!(d.user.canManage ?? d.user.isAdmin); local.canDrive = !!(d.user.canDrive ?? d.user.isAdmin); showAdmin(true); }
+    if (d.user) { local.worker = d.user.name; local.isAdmin = !!d.user.isAdmin; local.canManage = !!(d.user.canManage ?? d.user.isAdmin); local.canDrive = !!(d.user.canDrive ?? d.user.isAdmin); local.canStock = d.user.canStock !== false; showAdmin(true); }
     save(); ui(); renderDrive(); renderLines();
     $("#cSync").textContent = "Baza wspólna dla wszystkich pracowników. Zsynchronizowano " + new Date().toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }) + ".";
     return true;
@@ -561,8 +561,10 @@ function showAdmin(fresh = false) {
   document.querySelectorAll(".managerOnly").forEach(el => { el.style.display = local.canManage ? "" : "none"; });
   document.querySelectorAll(".adminOnly").forEach(el => { el.style.display = local.isAdmin ? "" : "none"; });
   document.querySelectorAll(".driverOnly").forEach(el => { el.style.display = local.canDrive ? "" : "none"; });
+  // sam kierowca nie wpisuje prania na magazyn — nie widzi tej zakładki
+  document.querySelectorAll(".stockOnly").forEach(el => { el.style.display = local.canStock === false ? "none" : ""; });
   const on = document.querySelector("nav button.on");
-  if (on && on.style.display === "none") document.querySelector("nav button[data-tab=magazyn]").click();
+  if (on && on.style.display === "none") document.querySelector(`nav button[data-tab=${local.canStock === false ? "trasa" : "magazyn"}]`).click();
   // sam kierowca (bez kierowania pralnią) zaczyna od trasy
   if (!fresh || !firstShow) return;
   firstShow = false;

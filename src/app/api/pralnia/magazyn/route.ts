@@ -84,10 +84,13 @@ export async function GET() {
   });
 }
 
-/** Partia wypranego prania na magazyn. Każdy pracownik pralni. */
+/** Partia wypranego prania na magazyn. Pracownik pralni i kierownik — kierowca tylko zabiera trasą. */
 export async function POST(request: Request) {
   const { user, denied } = await laundryUser();
   if (denied) return denied;
+  if (!user.canStockLaundry) {
+    return NextResponse.json({ error: "Kierowca nie wpisuje prania na magazyn, tylko zabiera je na trasę." }, { status: 403 });
+  }
 
   const parsed = batchSchema.safeParse(await readJson(request));
   if (!parsed.success) return NextResponse.json({ error: "Nieprawidłowe dane." }, { status: 400 });
