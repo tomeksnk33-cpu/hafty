@@ -227,6 +227,9 @@ model LaundryCatalogEntry {
   aliases          String[]           @default([])
   /// Tylko dla asortymentu: sztuki albo kilogramy.
   unit             LaundryUnit        @default(SZT)
+  /// Tylko dla asortymentu: w rozliczeniu miesięcznym liczony w kg (false = w sztukach).
+  /// Wpisuje się zawsze i sztuki, i kilogramy.
+  billKg           Boolean            @default(false)
   /// Tylko dla klienta: miejsce dostawy z GPS telefonu (stopnie WGS84),
   /// do późniejszego planowania trasy kierowcy.
   latitude         Float?
