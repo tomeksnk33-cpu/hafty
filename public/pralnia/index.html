@@ -75,6 +75,10 @@ select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(-
 .day .dot{display:none}
 @media (max-width:560px){.day{min-height:52px;padding:4px}.day .it,.day .more{display:none}.day .dot{display:block;font-size:12px;font-weight:700;color:var(--accent)}}
 main:has(#grafik.on){max-width:1040px}
+main:has(#klienci.on){max-width:1500px}
+@media (min-width:1000px){
+  .kGrid{display:grid;grid-template-columns:minmax(340px,38%) minmax(0,1fr);gap:16px;align-items:start}
+}
 .scroll{overflow-x:auto}
 .monthsum{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
 dialog#gDialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);padding:16px;width:min(640px,calc(100vw - 24px));max-height:calc(100vh - 48px);overflow:auto}
@@ -310,24 +314,28 @@ dialog#askDlg::backdrop{background:rgba(0,0,0,.45)}
 
 <!-- KLIENCI -->
 <section id="klienci">
+<div class="kGrid">
+ <div>
   <div class="card">
     <h2>Trasy kierowców</h2>
-    <p class="small" style="margin:0 0 8px">Kierowca najpierw wybiera trasę, a potem widzi jej klientów. <span class="adminOnly">Klienta przypisujesz do trasy na liście poniżej.</span><span class="notAdmin">Trasy i przypisanie klientów zmienia tylko administrator.</span></p>
+    <p class="small" style="margin:0 0 8px">Kierowca najpierw wybiera trasę, a potem widzi jej klientów. <span class="adminOnly">Klienta przypisujesz do trasy na liście klientów po prawej.</span><span class="notAdmin">Trasy i przypisanie klientów zmienia tylko administrator.</span></p>
     <div class="row adminOnly"><input id="lName" placeholder="np. Sanok" style="flex:1"><button class="btn pri" id="lAdd">Dodaj trasę</button></div>
     <ul class="list" id="lList"></ul>
   </div>
   <div class="card">
     <h2>Dodaj klienta</h2>
     <label>Nazwa</label><input id="cName" placeholder="np. Hotel Pod Lipami">
-    <label>Inne nazwy, po przecinku (jak pracownik może go nazywać)</label><input id="cAlias" placeholder="np. pod lipami, lipy">
-    <label>Telefony, po przecinku (z nich klient wysyła SMS o odbiór prania)</label><input id="cPhone" inputmode="tel" placeholder="np. 600 100 200, 13 43 00 000">
+    <label>Telefon (kilka po przecinku; z nich klient wysyła SMS o odbiór prania)</label><input id="cPhone" inputmode="tel" placeholder="np. 600 100 200">
+    <label>E-mail</label><input id="cEmail" type="email" placeholder="np. recepcja@hotel.pl">
     <div class="adminOnly"><label for="cLine">Trasa kierowcy</label><select id="cLine"></select></div>
     <div class="row" style="margin-top:10px"><button class="btn pri" id="cAdd">Dodaj</button></div>
   </div>
   <p class="small" id="cSync"></p>
+ </div>
   <div class="card"><h2>Klienci (<span id="cCount">0</span>)</h2>
     <p class="small" style="margin:0 0 6px">📍 <b>Pobierz dane geolokalizacji</b> zapisuje miejsce, w którym teraz stoi telefon — naciśnij, będąc u klienta. Kierowca widzi potem przycisk <b>Nawiguj do klienta</b>.</p>
     <ul class="list" id="cList"></ul></div>
+</div>
 </section>
 
 <!-- ASORTYMENT -->

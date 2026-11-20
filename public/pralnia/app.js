@@ -396,7 +396,8 @@ function ask(text, value = "", { password = false } = {}) {
     $("#askOk").onclick = () => finish(inp.value);
     $("#askCancel").onclick = () => finish(null);
     inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); finish(inp.value); } };
-    dlg.onclose = () => finish(null);
+    // Esc; nie „close”, bo to zdarzenie przychodzi później i zamknęłoby następne pytanie
+    dlg.oncancel = () => finish(null);
     dlg.showModal(); inp.focus(); try { inp.select(); } catch (e) {}
   });
 }
@@ -522,9 +523,9 @@ function renderList(kind) {
       ? `<label class='row small' style='gap:6px;cursor:pointer'><input type='checkbox' data-u style='width:20px;height:20px' ${x.billKg ? "checked" : ""}> rozliczany w kg</label>`
       : `<span class='small'>rozliczany w ${x.billKg ? "kg" : "sztukach"}</span>`) : "";
     const canEdit = kind === "c" || local.isAdmin;
-    const geo = kind === "c" ? `<br><span class='small'>📞 ${x.phones?.length ? x.phones.map(fmtPhone).map(esc).join(", ") : "brak telefonu"}</span><br><span class='small'>${x.location ? locText(x.location) : "📍 brak lokalizacji"}</span>` : "";
+    const geo = kind === "c" ? `<br><span class='small'>📞 ${x.phones?.length ? x.phones.map(fmtPhone).map(esc).join(", ") : "brak telefonu"}</span><br><span class='small'>✉️ ${x.email ? esc(x.email) : "brak e-maila"}</span><br><span class='small'>${x.location ? locText(x.location) : "📍 brak lokalizacji"}</span>` : "";
     const geoBtns = kind === "c" ? `<select data-line title='Trasa kierowcy' ${local.isAdmin ? "" : "disabled"}>${lineOptions(x.lineId)}</select>` + (local.isAdmin ? `<button class='btn' data-p>Cennik</button>` : "") + geoButton(x.id, !!x.location) + (x.location ? "<button class='btn del' data-gx>Usuń lokalizację</button>" : "") : "";
-    li.innerHTML = `<span><b>${esc(x.name)}</b>${kind === "c" && x.aliases?.length ? `<br><span class='small'>${esc(x.aliases.join(", "))}</span>` : ""}${geo}</span><span class='row' style='justify-content:flex-end'>${geoBtns}${bill}${canEdit ? "<button class='btn' data-e>Edytuj</button><button class='btn del' data-d>Usuń</button>" : ""}</span>`;
+    li.innerHTML = `<span><b>${esc(x.name)}</b>${geo}</span><span class='row' style='justify-content:flex-end'>${geoBtns}${bill}${canEdit ? "<button class='btn' data-e>Edytuj</button><button class='btn del' data-d>Usuń</button>" : ""}</span>`;
     const pb = li.querySelector("[data-p]");
     if (pb) pb.onclick = () => { pc.client = x.id; document.querySelector("nav button[data-tab=cennik]").click(); };
     const gb = li.querySelector("[data-g]"); if (gb) gb.onclick = () => captureLocation(x.id);
@@ -541,10 +542,10 @@ function renderList(kind) {
       const n = await ask("Nazwa:", x.name); if (n === null) return;
       const body = { id: x.id, name: n.trim() || x.name };
       if (kind === "c") {
-        const a = await ask("Inne nazwy (po przecinku):", (x.aliases || []).join(", ")); if (a === null) return;
-        body.aliases = a.split(",").map(s => s.trim()).filter(Boolean);
         const ph = await ask("Telefony (po przecinku) – z nich klient wysyła SMS o odbiór prania:", (x.phones || []).map(fmtPhone).join(", ")); if (ph === null) return;
         body.phones = splitList(ph);
+        const em = await ask("E-mail:", x.email || ""); if (em === null) return;
+        body.email = em.trim();
       }
       changeCatalog({ method: "PUT", body });
     };
@@ -556,7 +557,7 @@ function addFrom(kind) {
   const body = { kind: listKey(kind), name: n };
   if (kind === "a") { body.billKg = $("#aBillKg").checked; $("#aBillKg").checked = false; }
   if (kind === "c") {
-    body.aliases = $("#cAlias").value.split(",").map(s => s.trim()).filter(Boolean); $("#cAlias").value = "";
+    body.email = $("#cEmail").value.trim(); $("#cEmail").value = "";
     body.phones = splitList($("#cPhone").value); $("#cPhone").value = "";
     if (local.isAdmin) body.lineId = $("#cLine").value || null;
   }
