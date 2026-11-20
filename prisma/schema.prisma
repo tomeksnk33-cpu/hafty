@@ -241,6 +241,8 @@ model LaundryCatalogEntry {
   locatedBy        String?
   /// Tylko dla klienta: numery telefonów (+48…), po których rozpoznajemy SMS-y.
   phones           String[]           @default([])
+  /// Tylko dla klienta: adres e-mail.
+  email            String?
   /// Tylko dla klienta: trasa kierowcy, na której leży klient.
   lineId           String?
   createdAt        DateTime           @default(now())

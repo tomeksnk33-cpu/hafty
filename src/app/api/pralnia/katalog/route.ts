@@ -39,6 +39,14 @@ const entrySchema = z.object({
         ? undefined
         : [...new Set(list.map(normalizePhone).filter((p): p is string => !!p))].slice(0, 10),
     ),
+  /** Tylko klient: adres e-mail (pusty = brak). */
+  email: z
+    .string()
+    .trim()
+    .max(200)
+    .refine((v) => v === "" || z.email().safeParse(v).success, "Nieprawidłowy adres e-mail.")
+    .transform((v) => v || null)
+    .optional(),
   /** Tylko klient: stała trasa kierowcy (null = bez trasy). */
   lineId: z.string().min(1).nullable().optional(),
 });
@@ -80,6 +88,7 @@ export async function GET() {
       locatedAt: true,
       locatedBy: true,
       phones: true,
+      email: true,
       lineId: true,
     },
   });
@@ -97,11 +106,12 @@ export async function GET() {
     settings,
     clients: rows
       .filter((r) => r.kind === LaundryCatalogKind.CLIENT)
-      .map(({ id, name, aliases, phones, lineId, ...loc }) => ({
+      .map(({ id, name, aliases, phones, email, lineId, ...loc }) => ({
         id,
         name,
         aliases,
         phones,
+        email,
         lineId,
         location: locationOut(loc),
         visits: usage.visits(name),
@@ -128,7 +138,7 @@ export async function POST(request: Request) {
   const parsed = createSchema.safeParse(await readJson(request));
   if (!parsed.success) return invalid(parsed.error);
 
-  const { kind, name, aliases, billKg, phones, lineId } = parsed.data;
+  const { kind, name, aliases, billKg, phones, email, lineId } = parsed.data;
   // przypisanie klienta do trasy kierowcy zmienia trasę — tylko administrator
   if (kind === "clients" && lineId && !user.isAdmin) return adminOnly("Przypisać klienta do trasy");
   const entry = await prisma.laundryCatalogEntry.create({
@@ -140,6 +150,7 @@ export async function POST(request: Request) {
       unit: kind === "items" ? LaundryUnit.SZT_KG : LaundryUnit.SZT,
       billKg: kind === "items" ? billKg ?? false : false,
       phones: kind === "clients" ? phones ?? [] : [],
+      email: kind === "clients" ? email ?? null : null,
       lineId: kind === "clients" ? lineId ?? null : null,
     },
     select: { id: true, name: true, aliases: true, unit: true, billKg: true },
@@ -155,7 +166,7 @@ export async function PUT(request: Request) {
   const parsed = updateSchema.safeParse(await readJson(request));
   if (!parsed.success) return invalid(parsed.error);
 
-  const { id, name, aliases, billKg, phones, lineId } = parsed.data;
+  const { id, name, aliases, billKg, phones, email, lineId } = parsed.data;
   const before = await prisma.laundryCatalogEntry.findUnique({
     where: { id },
     select: { kind: true, name: true, lineId: true },
@@ -175,6 +186,7 @@ export async function PUT(request: Request) {
         ...(aliases ? { aliases } : {}),
         ...(billKg !== undefined && before.kind === LaundryCatalogKind.ITEM ? { billKg } : {}),
         ...(phones ? { phones } : {}),
+        ...(email !== undefined && before.kind === LaundryCatalogKind.CLIENT ? { email } : {}),
         ...(lineId !== undefined && before.kind === LaundryCatalogKind.CLIENT ? { lineId } : {}),
       },
     });
