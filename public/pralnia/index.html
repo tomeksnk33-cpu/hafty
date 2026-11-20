@@ -312,8 +312,8 @@ dialog#askDlg::backdrop{background:rgba(0,0,0,.45)}
 <section id="klienci">
   <div class="card">
     <h2>Trasy kierowców</h2>
-    <p class="small" style="margin:0 0 8px">Kierowca najpierw wybiera trasę, a potem widzi jej klientów. Klienta przypisujesz do trasy na liście poniżej.</p>
-    <div class="row"><input id="lName" placeholder="np. Sanok" style="flex:1"><button class="btn pri" id="lAdd">Dodaj trasę</button></div>
+    <p class="small" style="margin:0 0 8px">Kierowca najpierw wybiera trasę, a potem widzi jej klientów. <span class="adminOnly">Klienta przypisujesz do trasy na liście poniżej.</span><span class="notAdmin">Trasy i przypisanie klientów zmienia tylko administrator.</span></p>
+    <div class="row adminOnly"><input id="lName" placeholder="np. Sanok" style="flex:1"><button class="btn pri" id="lAdd">Dodaj trasę</button></div>
     <ul class="list" id="lList"></ul>
   </div>
   <div class="card">
@@ -321,7 +321,7 @@ dialog#askDlg::backdrop{background:rgba(0,0,0,.45)}
     <label>Nazwa</label><input id="cName" placeholder="np. Hotel Pod Lipami">
     <label>Inne nazwy, po przecinku (jak pracownik może go nazywać)</label><input id="cAlias" placeholder="np. pod lipami, lipy">
     <label>Telefony, po przecinku (z nich klient wysyła SMS o odbiór prania)</label><input id="cPhone" inputmode="tel" placeholder="np. 600 100 200, 13 43 00 000">
-    <label for="cLine">Trasa kierowcy</label><select id="cLine"></select>
+    <div class="adminOnly"><label for="cLine">Trasa kierowcy</label><select id="cLine"></select></div>
     <div class="row" style="margin-top:10px"><button class="btn pri" id="cAdd">Dodaj</button></div>
   </div>
   <p class="small" id="cSync"></p>
@@ -335,11 +335,8 @@ dialog#askDlg::backdrop{background:rgba(0,0,0,.45)}
   <div class="card">
     <h2>Dodaj asortyment</h2>
     <label>Nazwa</label><input id="aName" placeholder="np. Prześcieradło">
-    <label>Inne formy / nazwy, po przecinku</label><input id="aAlias" placeholder="np. prześcieradła, prześcieradeł">
-    <label for="aUnit">Liczone w</label>
-    <select id="aUnit" style="font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 10px">
-      <option value="szt">sztukach</option><option value="kg">kilogramach</option><option value="szt_kg">sztukach i kilogramach</option>
-    </select>
+    <p class="small" style="margin:6px 0 0">Przy każdym asortymencie wpisuje się i sztuki, i kilogramy.</p>
+    <label class="row" style="gap:8px;margin-top:10px;cursor:pointer"><input type="checkbox" id="aBillKg" style="width:22px;height:22px"> W rozliczeniu miesięcznym liczony w kilogramach (bez zaznaczenia: w sztukach)</label>
     <div class="row" style="margin-top:10px"><button class="btn pri" id="aAdd">Dodaj</button></div>
   </div>
   <div class="card"><h2>Asortyment (<span id="aCount">0</span>)</h2><ul class="list" id="aList"></ul></div>
@@ -351,7 +348,7 @@ dialog#askDlg::backdrop{background:rgba(0,0,0,.45)}
     <h2>Cennik prania</h2>
     <label for="pClient" style="margin-top:0">Klient</label>
     <div class="row"><select id="pClient" style="flex:1"></select><select id="pCopyFrom"></select></div>
-    <p class="small">Ceny w zł za sztukę albo za kilogram, osobno dla każdego klienta. Zapisuje się po wyjściu z pola. Puste pole oznacza brak ceny.</p>
+    <p class="small">Cena w zł za sztukę albo za kilogram (tak, jak asortyment jest rozliczany – zaznaczenie w zakładce Asortyment), osobno dla każdego klienta. Zapisuje się po wyjściu z pola. Puste pole oznacza brak ceny.</p>
     <div id="pList" class="scroll"></div>
     <p class="small" id="pNote" style="margin:8px 0 0"></p>
   </div>

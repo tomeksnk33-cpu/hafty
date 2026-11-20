@@ -19,14 +19,17 @@ const KIND = { clients: LaundryCatalogKind.CLIENT, items: LaundryCatalogKind.ITE
 
 const entrySchema = z.object({
   name: z.string().trim().min(1, "Podaj nazwę.").max(120),
+  /** Inne nazwy (dla rozpoznawania mowy); brak = bez zmian przy edycji. */
   aliases: z
     .array(z.string())
-    .default([])
+    .optional()
     .transform((list) =>
-      [...new Set(list.map((a) => a.trim().slice(0, 120)).filter(Boolean))].slice(0, 30),
+      list === undefined
+        ? undefined
+        : [...new Set(list.map((a) => a.trim().slice(0, 120)).filter(Boolean))].slice(0, 30),
     ),
-  /** Tylko asortyment: „szt” albo „kg”. */
-  unit: z.enum(["szt", "kg", "szt_kg"]).optional(),
+  /** Tylko asortyment: w rozliczeniu miesięcznym liczony w kg (inaczej w sztukach). */
+  billKg: z.boolean().optional(),
   /** Tylko klient: numery telefonów, z których może przyjść SMS o odbiór prania. */
   phones: z
     .array(z.string())
@@ -40,7 +43,6 @@ const entrySchema = z.object({
   lineId: z.string().min(1).nullable().optional(),
 });
 
-const UNIT = { szt: LaundryUnit.SZT, kg: LaundryUnit.KG, szt_kg: LaundryUnit.SZT_KG } as const;
 const unitOut = (unit: LaundryUnit) =>
   unit === LaundryUnit.KG ? "kg" : unit === LaundryUnit.SZT_KG ? "szt_kg" : "szt";
 
@@ -71,6 +73,7 @@ export async function GET() {
       name: true,
       aliases: true,
       unit: true,
+      billKg: true,
       latitude: true,
       longitude: true,
       locationAccuracy: true,
@@ -104,59 +107,73 @@ export async function GET() {
         visits: usage.visits(name),
         items: usage.clientItems({ id, name }, items),
       })),
-    items: items.map(({ id, name, aliases, unit }) => ({
+    items: items.map(({ id, name, aliases, unit, billKg }) => ({
       id,
       name,
       aliases,
       unit: unitOut(unit),
+      billKg,
       uses: usage.itemTotal(name),
     })),
   });
 }
 
+const adminOnly = (what: string) =>
+  NextResponse.json({ error: `${what} może tylko administrator.` }, { status: 403 });
+
 export async function POST(request: Request) {
-  const { denied } = await laundryUser({ manager: true });
+  const { user, denied } = await laundryUser({ manager: true });
   if (denied) return denied;
 
   const parsed = createSchema.safeParse(await readJson(request));
   if (!parsed.success) return invalid(parsed.error);
 
-  const { kind, name, aliases, unit, phones, lineId } = parsed.data;
+  const { kind, name, aliases, billKg, phones, lineId } = parsed.data;
+  // przypisanie klienta do trasy kierowcy zmienia trasę — tylko administrator
+  if (kind === "clients" && lineId && !user.isAdmin) return adminOnly("Przypisać klienta do trasy");
   const entry = await prisma.laundryCatalogEntry.create({
     data: {
       kind: KIND[kind],
       name,
-      aliases,
-      unit: UNIT[unit ?? "szt"],
+      aliases: aliases ?? [],
+      // asortyment wpisuje się zawsze w sztukach i kilogramach
+      unit: kind === "items" ? LaundryUnit.SZT_KG : LaundryUnit.SZT,
+      billKg: kind === "items" ? billKg ?? false : false,
       phones: kind === "clients" ? phones ?? [] : [],
       lineId: kind === "clients" ? lineId ?? null : null,
     },
-    select: { id: true, name: true, aliases: true, unit: true },
+    select: { id: true, name: true, aliases: true, unit: true, billKg: true },
   });
 
   return NextResponse.json({ ...entry, unit: unitOut(entry.unit) }, { status: 201 });
 }
 
 export async function PUT(request: Request) {
-  const { denied } = await laundryUser({ manager: true });
+  const { user, denied } = await laundryUser({ manager: true });
   if (denied) return denied;
 
   const parsed = updateSchema.safeParse(await readJson(request));
   if (!parsed.success) return invalid(parsed.error);
 
-  const { id, name, aliases, unit, phones, lineId } = parsed.data;
-  const before = await prisma.laundryCatalogEntry.findUnique({ where: { id }, select: { kind: true, name: true } });
+  const { id, name, aliases, billKg, phones, lineId } = parsed.data;
+  const before = await prisma.laundryCatalogEntry.findUnique({
+    where: { id },
+    select: { kind: true, name: true, lineId: true },
+  });
   if (!before) {
     return NextResponse.json({ error: "Ktoś inny usunął tę pozycję. Odświeżono listę." }, { status: 404 });
   }
+  // kierownik pralni asortyment tylko dodaje; trasy kierowców zmienia tylko administrator
+  if (!user.isAdmin && before.kind === LaundryCatalogKind.ITEM) return adminOnly("Zmieniać asortyment");
+  if (!user.isAdmin && lineId !== undefined && lineId !== before.lineId) return adminOnly("Zmieniać trasę klienta");
 
   await prisma.$transaction(async (tx) => {
     await tx.laundryCatalogEntry.update({
       where: { id },
       data: {
         name,
-        aliases,
-        ...(unit ? { unit: UNIT[unit] } : {}),
+        ...(aliases ? { aliases } : {}),
+        ...(billKg !== undefined && before.kind === LaundryCatalogKind.ITEM ? { billKg } : {}),
         ...(phones ? { phones } : {}),
         ...(lineId !== undefined && before.kind === LaundryCatalogKind.CLIENT ? { lineId } : {}),
       },
@@ -168,15 +185,20 @@ export async function PUT(request: Request) {
     }
   });
 
-  return NextResponse.json({ id, name, aliases, unit });
+  return NextResponse.json({ id, name });
 }
 
 export async function DELETE(request: Request) {
-  const { denied } = await laundryUser({ manager: true });
+  const { user, denied } = await laundryUser({ manager: true });
   if (denied) return denied;
 
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Brak id." }, { status: 400 });
+
+  if (!user.isAdmin) {
+    const entry = await prisma.laundryCatalogEntry.findUnique({ where: { id }, select: { kind: true } });
+    if (entry?.kind === LaundryCatalogKind.ITEM) return adminOnly("Usuwać asortyment");
+  }
 
   await prisma.laundryCatalogEntry.deleteMany({ where: { id } });
 

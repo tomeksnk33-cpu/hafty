@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { laundryUser } from "@/lib/pralnia/access";
 
 // Stałe trasy kierowcy (np. „Sanok”, „Krosno”). Listę zwraca /api/pralnia/katalog;
-// tu tylko zmiany, dla kierownika pralni i administratora.
+// tu tylko zmiany, wyłącznie dla administratora.
 
 const nameSchema = z.string().trim().min(1, "Podaj nazwę trasy.").max(80);
 
@@ -22,7 +22,7 @@ const taken = () => NextResponse.json({ error: "Trasa o tej nazwie już jest." }
 const isUnique = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 
 export async function POST(request: Request) {
-  const { denied } = await laundryUser({ manager: true });
+  const { denied } = await laundryUser({ admin: true });
   if (denied) return denied;
 
   const parsed = z.object({ name: nameSchema }).safeParse(await readJson(request));
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const { denied } = await laundryUser({ manager: true });
+  const { denied } = await laundryUser({ admin: true });
   if (denied) return denied;
 
   const parsed = z.object({ id: z.string().min(1), name: nameSchema }).safeParse(await readJson(request));
@@ -56,7 +56,7 @@ export async function PUT(request: Request) {
 
 /** Usunięcie trasy; jej klienci zostają, tylko bez przypisanej trasy. */
 export async function DELETE(request: Request) {
-  const { denied } = await laundryUser({ manager: true });
+  const { denied } = await laundryUser({ admin: true });
   if (denied) return denied;
 
   const id = new URL(request.url).searchParams.get("id");

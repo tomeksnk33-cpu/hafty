@@ -255,8 +255,6 @@ async function handle(alts) {
 // "szt" (sztuki), "kg" (kilogramy) albo "szt_kg" (sztuki i kilogramy naraz).
 // Wpis trasy: { unit, qty, kg } — qty to sztuki albo (dla "kg") kilogramy, kg tylko przy "szt_kg".
 const unitOfItem = it => (it && (it.unit === "kg" || it.unit === "szt_kg")) ? it.unit : "szt";
-const unitLabel = u => u === "kg" ? "kilogramach" : u === "szt_kg" ? "sztukach i kilogramach" : "sztukach";
-const unitShort = u => u === "kg" ? "kg" : u === "szt_kg" ? "szt.+kg" : "szt.";
 const fmtNum = q => Number(q).toLocaleString("pl-PL", { maximumFractionDigits: 2 });
 const fmtQty = (q, unit) => fmtNum(q) + (unit === "kg" ? " kg" : " szt.");
 const fmtEntry = v => v.unit === "szt_kg" ? fmtQty(v.qty, "szt") + " · " + fmtQty(v.kg, "kg") : fmtQty(v.qty, v.unit);
@@ -519,30 +517,32 @@ function renderList(kind) {
   $("#" + kind + "Count").textContent = arr.length;
   [...arr].sort((a, b) => a.name.localeCompare(b.name, "pl")).forEach(x => {
     const li = document.createElement("li");
-    const unitBtn = kind === "a" ? `<button class='btn' data-u title='Zmień jednostkę'>${unitShort(unitOfItem(x))}</button>` : "";
+    // asortyment: tylko nazwa i sposób rozliczenia; zmieniać i usuwać go może tylko administrator
+    const bill = kind === "a" ? (local.isAdmin
+      ? `<label class='row small' style='gap:6px;cursor:pointer'><input type='checkbox' data-u style='width:20px;height:20px' ${x.billKg ? "checked" : ""}> rozliczany w kg</label>`
+      : `<span class='small'>rozliczany w ${x.billKg ? "kg" : "sztukach"}</span>`) : "";
+    const canEdit = kind === "c" || local.isAdmin;
     const geo = kind === "c" ? `<br><span class='small'>📞 ${x.phones?.length ? x.phones.map(fmtPhone).map(esc).join(", ") : "brak telefonu"}</span><br><span class='small'>${x.location ? locText(x.location) : "📍 brak lokalizacji"}</span>` : "";
-    const geoBtns = kind === "c" ? `<select data-line title='Trasa kierowcy'>${lineOptions(x.lineId)}</select>` + geoButton(x.id, !!x.location) + (x.location ? "<button class='btn del' data-gx>Usuń lokalizację</button>" : "") : "";
-    li.innerHTML = `<span><b>${esc(x.name)}</b>${kind === "a" ? ` <span class='small'>· liczone w ${unitLabel(unitOfItem(x))}</span>` : ""}${x.aliases?.length ? `<br><span class='small'>${esc(x.aliases.join(", "))}</span>` : ""}${geo}</span><span class='row' style='justify-content:flex-end'>${geoBtns}${unitBtn}<button class='btn' data-e>Edytuj</button><button class='btn del' data-d>Usuń</button></span>`;
+    const geoBtns = kind === "c" ? `<select data-line title='Trasa kierowcy' ${local.isAdmin ? "" : "disabled"}>${lineOptions(x.lineId)}</select>` + (local.isAdmin ? `<button class='btn' data-p>Cennik</button>` : "") + geoButton(x.id, !!x.location) + (x.location ? "<button class='btn del' data-gx>Usuń lokalizację</button>" : "") : "";
+    li.innerHTML = `<span><b>${esc(x.name)}</b>${kind === "c" && x.aliases?.length ? `<br><span class='small'>${esc(x.aliases.join(", "))}</span>` : ""}${geo}</span><span class='row' style='justify-content:flex-end'>${geoBtns}${bill}${canEdit ? "<button class='btn' data-e>Edytuj</button><button class='btn del' data-d>Usuń</button>" : ""}</span>`;
+    const pb = li.querySelector("[data-p]");
+    if (pb) pb.onclick = () => { pc.client = x.id; document.querySelector("nav button[data-tab=cennik]").click(); };
     const gb = li.querySelector("[data-g]"); if (gb) gb.onclick = () => captureLocation(x.id);
     const gx = li.querySelector("[data-gx]"); if (gx) gx.onclick = () => clearLocation(x.id);
     const ls = li.querySelector("[data-line]");
-    if (ls) ls.onchange = () => changeCatalog({ method: "PUT", body: { id: x.id, name: x.name, aliases: x.aliases || [], lineId: ls.value || null } });
+    if (ls && local.isAdmin) ls.onchange = () => changeCatalog({ method: "PUT", body: { id: x.id, name: x.name, lineId: ls.value || null } });
     const ub = li.querySelector("[data-u]");
-    if (ub) ub.onclick = () => {
-      // szt. -> kg -> szt.+kg -> szt.
-      const order = ["szt", "kg", "szt_kg"];
-      const next = order[(order.indexOf(unitOfItem(x)) + 1) % order.length];
-      if (confirm(`Liczyć „${x.name}” w ${unitLabel(next)}? Zapisane wcześniej trasy się nie zmienią.`))
-        changeCatalog({ method: "PUT", body: { id: x.id, name: x.name, aliases: x.aliases || [], unit: next } });
-    };
+    if (ub) ub.onchange = () => changeCatalog({ method: "PUT", body: { id: x.id, name: x.name, billKg: ub.checked } });
+    if (!canEdit) { ul.append(li); return; }
     li.querySelector("[data-d]").onclick = () => {
       if (confirm("Usunąć „" + x.name + "”?")) changeCatalog({ method: "DELETE", query: "?id=" + encodeURIComponent(x.id) });
     };
     li.querySelector("[data-e]").onclick = async () => {
       const n = await ask("Nazwa:", x.name); if (n === null) return;
-      const a = await ask("Inne nazwy (po przecinku):", (x.aliases || []).join(", ")); if (a === null) return;
-      const body = { id: x.id, name: n.trim() || x.name, aliases: a.split(",").map(s => s.trim()).filter(Boolean) };
+      const body = { id: x.id, name: n.trim() || x.name };
       if (kind === "c") {
+        const a = await ask("Inne nazwy (po przecinku):", (x.aliases || []).join(", ")); if (a === null) return;
+        body.aliases = a.split(",").map(s => s.trim()).filter(Boolean);
         const ph = await ask("Telefony (po przecinku) – z nich klient wysyła SMS o odbiór prania:", (x.phones || []).map(fmtPhone).join(", ")); if (ph === null) return;
         body.phones = splitList(ph);
       }
@@ -553,12 +553,15 @@ function renderList(kind) {
 }
 function addFrom(kind) {
   const n = $("#" + kind + "Name").value.trim(); if (!n) return;
-  const aliases = $("#" + kind + "Alias").value.split(",").map(s => s.trim()).filter(Boolean);
-  const body = { kind: listKey(kind), name: n, aliases };
-  if (kind === "a") body.unit = $("#aUnit").value;
-  if (kind === "c") { body.phones = splitList($("#cPhone").value); $("#cPhone").value = ""; body.lineId = $("#cLine").value || null; }
+  const body = { kind: listKey(kind), name: n };
+  if (kind === "a") { body.billKg = $("#aBillKg").checked; $("#aBillKg").checked = false; }
+  if (kind === "c") {
+    body.aliases = $("#cAlias").value.split(",").map(s => s.trim()).filter(Boolean); $("#cAlias").value = "";
+    body.phones = splitList($("#cPhone").value); $("#cPhone").value = "";
+    if (local.isAdmin) body.lineId = $("#cLine").value || null;
+  }
   changeCatalog({ method: "POST", body });
-  $("#" + kind + "Name").value = ""; $("#" + kind + "Alias").value = "";
+  $("#" + kind + "Name").value = "";
 }
 $("#cAdd").onclick = () => addFrom("c"); $("#aAdd").onclick = () => addFrom("a");
 
@@ -575,6 +578,7 @@ function showAdmin(fresh = false) {
   $("#navGrafik").style.display = local.canManage ? "" : "none";
   document.querySelectorAll(".managerOnly").forEach(el => { el.style.display = local.canManage ? "" : "none"; });
   document.querySelectorAll(".adminOnly").forEach(el => { el.style.display = local.isAdmin ? "" : "none"; });
+  document.querySelectorAll(".notAdmin").forEach(el => { el.style.display = local.isAdmin ? "none" : ""; });
   document.querySelectorAll(".driverOnly").forEach(el => { el.style.display = local.canDrive ? "" : "none"; });
   // sam kierowca nie wpisuje prania na magazyn — nie widzi tej zakładki
   document.querySelectorAll(".stockOnly").forEach(el => { el.style.display = local.canStock === false ? "none" : ""; });
@@ -747,12 +751,12 @@ $("#gCsv").onclick = () => {
   const num = v => v === "" ? "" : String(v).replace(".", ",");
   // bez cen dla kierownika pralni
   const money = local.isAdmin;
-  const lines = [["Asortyment", "Klient", "Sztuki", "Kilogramy", "Dni z dostawą", ...(money ? ["Cena zł/szt", "Cena zł/kg", "Wartość zł"] : [])].map(q).join(";")];
+  const lines = [["Asortyment", "Klient", "Sztuki", "Kilogramy", "Dni z dostawą", ...(money ? ["Rozliczane w", "Cena zł", "Wartość zł"] : [])].map(q).join(";")];
   const row = (item, client, i) => {
     const pcs = i.unit === "kg" ? "" : i.qty, kg = i.unit === "kg" ? i.qty : i.unit === "szt_kg" ? i.kg : "";
     const p = client === "RAZEM" ? {} : priceOf(client, item);
     const cell = v => v == null ? "" : num(v);
-    lines.push([item, client, num(pcs), num(kg), i.days.size, ...(money ? [cell(i.unit !== "kg" ? p.szt : null), cell(i.unit !== "szt" ? p.kg : null), i.miss ? "" : num(i.val ?? "")] : [])].map(q).join(";"));
+    lines.push([item, client, num(pcs), num(kg), i.days.size, ...(money ? [billKgOf(item) ? "kg" : "szt.", cell(p[billKgOf(item) ? "kg" : "szt"]), i.miss ? "" : num(i.val ?? "")] : [])].map(q).join(";"));
   };
   for (const it of itemRows(g.rows)) {
     for (const c of it.clients) for (const i of c.entries) row(it.item, c.client, i);
@@ -778,14 +782,14 @@ const pk = (client, item) => client + "\u0000" + item;
 function setPrices(list) { priceList = list || []; prices = new Map(priceList.map(p => [pk(p.client, p.item), p])); }
 const priceOf = (client, item) => prices.get(pk(client, item)) || {};
 // wartość jednego wiersza trasy albo null, gdy brak potrzebnej ceny
+// Asortyment rozliczany jest w kg albo w sztukach (zaznaczenie w zakładce Asortyment),
+// cena z cennika danego klienta w tej jednostce.
+const billKgOf = item => !!cat().items.find(i => i.name.toLowerCase() === String(item).toLowerCase())?.billKg;
+// ilość do rozliczenia: kg albo sztuki z wpisu (null, gdy wpis jej nie ma, np. stary wpis tylko w kg)
+const billQty = (r, kg) => kg ? (r.unit === "kg" ? r.qty : r.unit === "szt_kg" ? r.kg || 0 : null) : (r.unit === "kg" ? null : r.qty);
 function rowValue(r) {
-  const p = priceOf(r.client, r.item);
-  if (r.unit === "kg") return p.kg == null ? null : r2(r.qty * p.kg);
-  if (r.unit === "szt_kg") {
-    if (p.szt == null && p.kg == null) return null;
-    return r2(r.qty * (p.szt || 0) + (r.kg || 0) * (p.kg || 0));
-  }
-  return p.szt == null ? null : r2(r.qty * p.szt);
+  const kg = billKgOf(r.item), price = priceOf(r.client, r.item)[kg ? "kg" : "szt"], n = billQty(r, kg);
+  return price == null || n == null ? null : r2(n * price);
 }
 const valueSum = rows => ({ val: r2(rows.reduce((a, r) => a + (r.val ?? 0), 0)), miss: rows.some(r => r.val == null) });
 const zl = v => v.toLocaleString("pl-PL", { style: "currency", currency: "PLN" });
@@ -810,18 +814,21 @@ function renderCennik() {
   if (!pc.client || !items.length) { $("#pList").innerHTML = "<p class='small'>Dodaj klientów i asortyment, żeby ustalić ceny.</p>"; return; }
   const byId = new Map(priceList.filter(p => p.clientId === pc.client).map(p => [p.itemId, p]));
   const inp = (it, f, v) => `<input type="text" inputmode="decimal" data-item="${esc(it.id)}" data-f="${f}" value="${v == null ? "" : String(v).replace(".", ",")}" placeholder="—" style="width:96px;text-align:right">`;
-  let h = "<table><tr><th>Asortyment</th><th class='n'>zł / szt.</th><th class='n'>zł / kg</th></tr>";
+  // jedna cena na asortyment, w jednostce rozliczenia (kg albo sztuki)
+  let h = "<table><tr><th>Asortyment</th><th>Rozliczany w</th><th class='n'>Cena</th></tr>";
   for (const it of items) {
-    const u = unitOfItem(it), p = byId.get(it.id) || {};
-    h += `<tr><td>${esc(it.name)} <span class='small'>· ${unitShort(u)}</span></td>` +
-      `<td class='n'>${u !== "kg" ? inp(it, "szt", p.szt) : ""}</td><td class='n'>${u !== "szt" ? inp(it, "kg", p.kg) : ""}</td></tr>`;
+    const f = it.billKg ? "kg" : "szt", p = byId.get(it.id) || {};
+    h += `<tr><td>${esc(it.name)}</td><td class='small'>${it.billKg ? "kilogramach" : "sztukach"}</td>` +
+      `<td class='n' style='white-space:nowrap'>${inp(it, f, p[f])} <span class='small'>zł / ${it.billKg ? "kg" : "szt."}</span></td></tr>`;
   }
   $("#pList").innerHTML = h + "</table>";
   $("#pList").querySelectorAll("input").forEach(el => el.onchange = () => savePrice(el.dataset.item));
 }
 const parsePrice = v => { v = v.trim().replace(/\s|zł/g, "").replace(",", "."); if (!v) return null; const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : NaN; };
 async function savePrice(itemId) {
-  const get = f => { const el = $("#pList").querySelector(`input[data-item="${CSS.escape(itemId)}"][data-f="${f}"]`); return el ? parsePrice(el.value) : null; };
+  // cena w drugiej jednostce zostaje, jak była (przyda się po zmianie sposobu rozliczenia)
+  const old = priceList.find(p => p.clientId === pc.client && p.itemId === itemId) || {};
+  const get = f => { const el = $("#pList").querySelector(`input[data-item="${CSS.escape(itemId)}"][data-f="${f}"]`); return el ? parsePrice(el.value) : old[f] ?? null; };
   const body = { clientId: pc.client, itemId, szt: get("szt"), kg: get("kg") };
   if (Number.isNaN(body.szt) || Number.isNaN(body.kg)) { $("#pNote").textContent = "Wpisz cenę jako liczbę, np. 3,50."; return; }
   try {
@@ -1296,7 +1303,8 @@ function renderLines() {
   for (const l of lines) {
     const n = cat().clients.filter(c => c.lineId === l.id).length;
     const li = document.createElement("li");
-    li.innerHTML = `<span><b>${esc(l.name)}</b> <span class='small'>· ${n} ${n === 1 ? "klient" : "klientów"}</span></span><span class='row' style='justify-content:flex-end'><button class='btn' data-e>Zmień nazwę</button><button class='btn del' data-d>Usuń</button></span>`;
+    li.innerHTML = `<span><b>${esc(l.name)}</b> <span class='small'>· ${n} ${n === 1 ? "klient" : "klientów"}</span></span>${local.isAdmin ? "<span class='row' style='justify-content:flex-end'><button class='btn' data-e>Zmień nazwę</button><button class='btn del' data-d>Usuń</button></span>" : ""}`;
+    if (!local.isAdmin) { ul.append(li); continue; }
     li.querySelector("[data-e]").onclick = async () => {
       const name = await ask("Nazwa trasy:", l.name); if (!name || !name.trim()) return;
       try { await api("linie", { method: "PUT", body: { id: l.id, name: name.trim() } }); } catch (e) { alert("Nie zapisano: " + e.message); }
