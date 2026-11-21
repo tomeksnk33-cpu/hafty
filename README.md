@@ -31,6 +31,9 @@ Klient z bazy haftów może dostać własne konto i sam składać zlecenia.
 - **Szablony zleceń**: na karcie klienta (sekcja „Szablony zleceń”) pracownik
   przygotowuje gotowe zlecenia — asortyment ze zdjęciami, logo (rodzaj i miejsce
   każdego) i opis. Klient widzi je jako kafelki „Zamów z szablonu” i podaje tylko ilość.
+  Klient może też sam tworzyć, zmieniać i usuwać swoje szablony (zakładka
+  **Szablony** w „Moje zlecenia”) albo zapisać złożone zlecenie jako szablon
+  („Zapisz jako szablon”).
   Nad szablonami jest wyszukiwarka (nazwa, asortyment, rodzaj, umiejscowienie,
   opis; bez polskich znaków też działa).
   Zlecenie kopiuje dane szablonu w chwili zamówienia (zmiana szablonu nie zmienia

@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { orderNumber } from "@/lib/orders";
 
 import { cancelOwnOrder } from "../actions";
+import { saveOrderAsTemplate } from "../szablony/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,13 @@ export default async function MyOrderPage(props: PageProps<"/moje-zlecenia/[id]"
       </div>
 
       <OrderDetails order={order} />
+
+      <form action={saveOrderAsTemplate.bind(null, order.id)} className="mt-6">
+        <button type="submit" className="btn-secondary px-5 py-3 text-base">
+          ☆ Zapisz jako szablon
+        </button>
+        <p className="mt-1 text-sm text-muted">Następnym razem zamówisz to samo, podając tylko ilość.</p>
+      </form>
 
       {order.status === "NOWE" ? (
         <div className="mt-8 border-t border-line pt-6">
