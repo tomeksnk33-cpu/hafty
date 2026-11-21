@@ -55,3 +55,30 @@ export function placementText(placements: readonly string[], notes: string | nul
 export function orderNumber(number: number) {
   return `Z-${String(number).padStart(4, "0")}`;
 }
+
+/** Szablon jako pozycja listy z wyszukiwarką (components/template-search.tsx). */
+export function templateItem(
+  template: {
+    id: string;
+    name: string;
+    kind: OrderKindValue;
+    product: string;
+    placements: readonly string[];
+    placementNotes: string | null;
+    notes: string | null;
+    photos: { url: string }[];
+  },
+  href: string,
+) {
+  const subtitle = `${ORDER_KIND_LABEL[template.kind]} · ${placementText(template.placements, template.placementNotes)}`;
+
+  return {
+    id: template.id,
+    name: template.name,
+    href,
+    photoUrl: template.photos[0]?.url ?? null,
+    subtitle,
+    searchText: [template.name, template.product, subtitle, template.notes ?? ""].join(" "),
+    placeholder: template.kind === "DTF" ? "DTF" : "🧵",
+  };
+}

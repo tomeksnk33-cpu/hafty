@@ -1,16 +1,16 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ConfirmAction } from "@/components/confirm-action";
 import { DeleteButton } from "@/components/delete-button";
 import { OrderStatusBadge } from "@/components/order-details";
+import { TemplateSearch } from "@/components/template-search";
 import { PageHeader, Stat } from "@/components/page-header";
 import { RealizationCard, realizationCardSelect } from "@/components/realization-card";
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate, formatMoney, plural } from "@/lib/format";
-import { ORDER_KIND_LABEL, orderNumber, placementText } from "@/lib/orders";
+import { ORDER_KIND_LABEL, orderNumber, templateItem } from "@/lib/orders";
 
 import { deleteClient, saveClientAccount, setClientAccountActive } from "../actions";
 import { ClientAccountForm } from "./client-account";
@@ -25,7 +25,7 @@ export default async function ClientSummaryPage(props: PageProps<"/klienci/[id]"
       account: { select: { login: true, active: true } },
       templates: {
         orderBy: { name: "asc" },
-        include: { photos: { orderBy: { position: "asc" }, take: 1 } },
+        include: { photos: { orderBy: { position: "asc" }, take: 1, select: { url: true } } },
       },
       orders: {
         orderBy: { createdAt: "desc" },
@@ -201,28 +201,12 @@ export default async function ClientSummaryPage(props: PageProps<"/klienci/[id]"
         {client.templates.length === 0 ? (
           <p className="text-sm text-muted">Ten klient nie ma jeszcze szablonów.</p>
         ) : (
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {client.templates.map((template) => (
-              <li key={template.id}>
-                <Link
-                  href={`/klienci/${client.id}/szablony/${template.id}`}
-                  className="flex items-center gap-3 rounded-xl border border-line p-3 hover:border-accent/40"
-                >
-                  <span className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-paper">
-                    {template.photos[0] ? (
-                      <Image src={template.photos[0].url} alt="" fill sizes="64px" className="object-cover" />
-                    ) : null}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium">{template.name}</span>
-                    <span className="block truncate text-sm text-muted">
-                      {ORDER_KIND_LABEL[template.kind]} · {placementText(template.placements, template.placementNotes)}
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <TemplateSearch
+            variant="list"
+            templates={client.templates.map((template) =>
+              templateItem(template, `/klienci/${client.id}/szablony/${template.id}`),
+            )}
+          />
         )}
 
         {client.account ? null : (
