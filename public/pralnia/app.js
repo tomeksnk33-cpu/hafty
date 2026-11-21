@@ -470,8 +470,6 @@ $("#mic").onclick = () => running ? stop() : start();
 $("#typedGo").onclick = () => { const v = $("#typed").value.trim(); if (v) { $("#typed").value = ""; handle(v); } };
 $("#typed").onkeydown = e => { if (e.key === "Enter") $("#typedGo").click(); };
 $("#sendNow").onclick = () => finishRoute(false);
-$("#copySum").onclick = () => { navigator.clipboard?.writeText(summaryText(local.route)); log("Skopiowano listę"); };
-$("#clearRoute").onclick = async () => { if (await bigYes("Usunąć wszystkie wpisy z listy?")) { local.route = []; local.routeId = null; mode = "client"; currentClient = null; save(); ui(); } };
 $("#histRefresh").onclick = loadHistory;
 
 document.querySelectorAll("nav button[data-tab]").forEach(b => b.onclick = () => {
