@@ -209,3 +209,27 @@ export function toFormState(error: z.ZodError): FormState {
 
   return { message: "Popraw zaznaczone pola.", errors };
 }
+
+/** Konto klienta haftów do składania zleceń. Hasło puste = bez zmiany (przy edycji). */
+export const clientAccountSchema = z.object({
+  login: loginField,
+  password: z.string().max(MAX_PASSWORD, `Hasło może mieć najwyżej ${MAX_PASSWORD} znaków`),
+});
+
+export const orderSchema = z.object({
+  kind: z.enum(["HAFT", "DTF"], "Wybierz rodzaj: haft albo DTF"),
+  product: text(200).min(1, "Wpisz asortyment, np. koszulka polo granatowa"),
+  placements: z.array(z.enum(["PLECY", "PRZOD_LEWY", "PRZOD_PRAWY", "REKAW"])).max(4),
+  placementNotes: optionalText(1000),
+  quantity: z
+    .string()
+    .overwrite((value) => value.replace(/\s/g, ""))
+    .regex(/^\d+$/, "Podaj ilość sztuk")
+    .transform(Number)
+    .refine((value) => value >= 1, "Ilość musi być co najmniej 1")
+    .refine((value) => value <= 1_000_000, "Ilość jest za duża"),
+  notes: optionalText(5000),
+}).refine((order) => order.placements.length > 0 || order.placementNotes !== null, {
+  message: "Zaznacz umiejscowienie albo opisz je",
+  path: ["placements"],
+});

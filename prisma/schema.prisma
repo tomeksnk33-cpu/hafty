@@ -43,8 +43,13 @@ model User {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
+  /// Konto klienta haftów: widzi tylko swoje zlecenia i nie ma dostępu do żadnej aplikacji pracowników.
+  clientId              String?  @unique
+
   workEntries   WorkEntry[]
   laundryRoutes LaundryRoute[]
+  client        Client?           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  ordersCreated EmbroideryOrder[]
 }
 
 /// Wpis w dzienniku pracy: kto, którego dnia, przy której realizacji i ile sztuk.
@@ -81,8 +86,72 @@ model Client {
   updatedAt DateTime @updatedAt
 
   realizations Realization[]
+  account      User?
+  orders       EmbroideryOrder[]
 
   @@index([name])
+}
+
+enum OrderKind {
+  HAFT
+  DTF
+}
+
+enum OrderPlacement {
+  PLECY
+  PRZOD_LEWY
+  PRZOD_PRAWY
+  REKAW
+}
+
+enum OrderStatus {
+  NOWE
+  W_REALIZACJI
+  GOTOWE
+  ANULOWANE
+}
+
+/// Zlecenie złożone przez klienta haftów (albo przez pracownika w jego imieniu).
+model EmbroideryOrder {
+  id             String           @id @default(cuid())
+  /// Kolejny numer zlecenia pokazywany klientowi i pracownikom.
+  number         Int              @unique @default(autoincrement())
+  clientId       String
+  createdById    String?
+  kind           OrderKind
+  /// Asortyment, np. „koszulka polo granatowa".
+  product        String
+  placements     OrderPlacement[]
+  /// Opis umiejscowienia (dowolne miejsce lub szczegóły).
+  placementNotes String?
+  quantity       Int
+  notes          String?
+  status         OrderStatus      @default(NOWE)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  client    Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdBy User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  photos    OrderPhoto[]
+
+  @@index([clientId, createdAt])
+  @@index([status, createdAt])
+}
+
+/// Zdjęcie asortymentu dołączone do zlecenia (Vercel Blob).
+model OrderPhoto {
+  id        String   @id @default(cuid())
+  orderId   String
+  url       String
+  pathname  String
+  filename  String
+  sizeBytes Int
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  order EmbroideryOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
 }
 
 /// Pozycja katalogu nici — producent + numer jednoznacznie identyfikują nić.

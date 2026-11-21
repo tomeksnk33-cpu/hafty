@@ -109,8 +109,9 @@ export async function updateUser(
   const noAccess = accessProblem(data);
   if (noAccess) return noAccess;
 
-  const target = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+  const target = await prisma.user.findFirst({ where: { id, clientId: null }, select: { id: true } });
 
+  // Konto klienta haftów zmienia się na karcie klienta.
   if (!target) return { message: "Ta osoba już nie istnieje." };
 
   // Puste pole oznacza "bez zmiany hasła" — ale jeśli coś wpisano, ma spełniać zasady.

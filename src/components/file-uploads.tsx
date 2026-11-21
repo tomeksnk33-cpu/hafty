@@ -28,7 +28,7 @@ async function uploadOne(kind: UploadKind, file: File): Promise<UploadedFile> {
 }
 
 /** Wspólna obsługa wyboru plików: walidacja, wysyłka, komunikat błędu. */
-function useUploader(kind: UploadKind, onAdd: (files: UploadedFile[]) => void) {
+export function useUploader(kind: UploadKind, onAdd: (files: UploadedFile[]) => void) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

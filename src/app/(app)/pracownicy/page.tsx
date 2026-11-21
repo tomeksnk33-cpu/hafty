@@ -9,7 +9,9 @@ import { appsLabel, roleLabel } from "@/lib/roles";
 export default async function EmployeesPage() {
   const admin = await requireAdmin();
 
+  // Konta klientów haftów są na kartach klientów, nie na liście pracowników.
   const users = await prisma.user.findMany({
+    where: { clientId: null },
     orderBy: [{ active: "desc" }, { name: "asc" }],
     select: {
       id: true,

@@ -10,6 +10,25 @@ W tej samej aplikacji działają też **Trasa pralni** (`/pralnia`),
 wyboru z aplikacjami, do których konto ma dostęp. Wszystkie części korzystają
 z jednej bazy PostgreSQL i tych samych kont pracowników.
 
+## Zlecenia od klientów haftów
+
+Klient z bazy haftów może dostać własne konto i sam składać zlecenia.
+
+- Konto zakłada osoba zarządzająca haftami na karcie klienta (**Klienci → klient →
+  Konto do składania zleceń**): login i hasło, które przekazuje klientowi. Tam też
+  zmienia się hasło i blokuje konto. Konta klientów nie ma na liście pracowników.
+- Klient loguje się na tej samej stronie logowania i trafia od razu do
+  **Moje zlecenia** (`/moje-zlecenia`). Nie ma dostępu do żadnej aplikacji
+  pracowników — sprawdza to serwer (`lib/auth.ts`, konto z `clientId`).
+- Zlecenie: rodzaj (haft albo DTF), asortyment ze zdjęciami (do 10), umiejscowienie
+  (plecy, przód lewy, przód prawy, rękaw i/lub opis), ilość i uwagi. Klient widzi
+  tylko swoje zlecenia i ich etap; może wycofać zlecenie, dopóki jest „Nowe”.
+- Pracownicy bazy haftów mają zakładkę **Zlecenia**: lista z filtrem etapu,
+  szczegóły ze zdjęciami i zmiana etapu (Nowe, W realizacji, Gotowe, Anulowane).
+  Usunąć zlecenie może osoba zarządzająca haftami.
+- O nowym zleceniu idzie mail na `MAIL_TO` (te same zmienne `SMTP_*` co pralnia).
+- Dane: tabele `EmbroideryOrder` i `OrderPhoto`, zdjęcia w Vercel Blob w folderze `zlecenia/`.
+
 ## Trasa pralni
 
 Aplikacja w telefonie do zapisywania głosem, co zostało zrobione u klientów na trasie.

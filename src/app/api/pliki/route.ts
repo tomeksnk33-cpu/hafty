@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth";
 import { saveFile } from "@/lib/storage";
+import { ORDER_PHOTO_FOLDER } from "@/lib/orders";
 import { checkFile, type UploadKind } from "@/lib/uploads";
 
 /**
@@ -11,8 +12,8 @@ import { checkFile, type UploadKind } from "@/lib/uploads";
  *
  * Trasa jest chroniona przez proxy.ts, ale konto i uprawnienia sprawdzamy też
  * tutaj — endpoint zapisujący pliki nie powinien polegać wyłącznie na
- * konfiguracji matchera. Pliki wgrywa się tylko z formularza realizacji, więc
- * wymagamy prawa do zarządzania hafami.
+ * konfiguracji matchera. Pliki wgrywa się z formularza realizacji (prawo do
+ * zarządzania haftami) albo — tylko zdjęcia — z formularza zlecenia klienta.
  */
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -21,7 +22,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Brak dostępu." }, { status: 401 });
   }
 
-  if (!user.canManage) {
+  // Klient haftów może wgrać tylko zdjęcia asortymentu do swojego zlecenia.
+  const isClient = user.clientId !== null;
+
+  if (!user.canManage && !isClient) {
     return NextResponse.json({ error: "Nie masz uprawnień do wgrywania plików." }, { status: 403 });
   }
 
@@ -37,6 +41,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Nieznany rodzaj pliku." }, { status: 400 });
   }
 
+  if (isClient && kind !== "zdjecia") {
+    return NextResponse.json({ error: "Nieznany rodzaj pliku." }, { status: 400 });
+  }
+
   const problem = checkFile(kind as UploadKind, {
     name: file.name,
     type: file.type,
@@ -48,7 +56,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const stored = await saveFile(kind, file);
+    const stored = await saveFile(isClient ? ORDER_PHOTO_FOLDER : kind, file);
 
     return NextResponse.json({
       url: stored.url,
