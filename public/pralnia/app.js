@@ -1327,6 +1327,12 @@ $("#lAdd").onclick = async () => {
   loadCatalog();
 };
 
+// wylogowanie: niewysłane wpisy zostają na urządzeniu i wyślą się po ponownym zalogowaniu
+$("#logout").onclick = async () => {
+  if (local.pending.length && !confirm("Na tym urządzeniu czekają niewysłane wpisy. Zostaną tutaj i wyślą się po ponownym zalogowaniu. Wylogować?")) return;
+  try { await fetch("/api/wyloguj", { method: "POST" }); } catch (e) {}
+  location.href = "/login";
+};
 window.addEventListener("online", () => flushPending(false));
 renderList("c"); renderList("a"); ui();
 renderDrive(); renderLines(); applySettings();
