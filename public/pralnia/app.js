@@ -1236,8 +1236,9 @@ function renderDriveItems(c) {
     const done = [...got.values()].find(v => v.label === s.item);
     const b = document.createElement("button");
     b.className = "tile" + (done ? " done" : "");
-    b.innerHTML = `<span>${esc(s.item)}</span><span class='sub'>w magazynie: ${fmtEntry(s)}</span>` + (done ? `<span class='got'>✓ w trasie ${fmtEntry(done)}</span>` : "");
-    b.onclick = () => openQty(c, { name: s.item, unit: s.unit }, { max: { qty: s.qty, kg: s.kg }, fill: { qty: s.qty, kg: s.kg }, ok: "Dodaj do trasy", onAdd: e => drvAdd(c, s.item, e) });
+    b.innerHTML = `<span>${esc(s.item)}</span><span class='sub'>w magazynie: ${fmtEntry(s)}</span><span class='sub'>dotknij – zabierz całość</span>` + (done ? `<span class='got'>✓ w trasie ${fmtEntry(done)}</span>` : "");
+    // kierowca zabiera zawsze całość tego, co jest w magazynie (bez wpisywania mniejszej ilości)
+    b.onclick = () => s.qty <= 0 ? bigAlert(`„${s.item}”: w magazynie nie ma sztuk do zabrania. Kierownik pralni może poprawić stan magazynu.`) : drvAdd(c, s.item, s.unit === "szt_kg" ? { unit: s.unit, qty: s.qty, kg: s.kg } : { unit: s.unit, qty: s.qty });
     box.append(b);
   }
   // to, co już w całości zabrane
@@ -1253,8 +1254,7 @@ function renderDriveItems(c) {
 $("#dAll").onclick = () => {
   const c = drv.client; if (!c) return;
   for (const s of available().filter(x => x.client === c.name)) {
-    // „szt.+kg” musi mieć obie liczby; pozycje bez którejś zostają do ręcznego wpisania
-    if (s.qty <= 0 || (s.unit === "szt_kg" && s.kg <= 0)) continue;
+    if (s.qty <= 0) continue;
     drvAdd(c, s.item, s.unit === "szt_kg" ? { unit: s.unit, qty: s.qty, kg: s.kg } : { unit: s.unit, qty: s.qty });
   }
 };
