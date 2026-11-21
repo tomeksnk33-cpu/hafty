@@ -7,7 +7,10 @@ export async function TemplateTiles({ clientId }: { clientId: string }) {
   const templates = await prisma.orderTemplate.findMany({
     where: { clientId },
     orderBy: { name: "asc" },
-    include: { photos: { orderBy: { position: "asc" }, take: 1, select: { url: true } } },
+    include: {
+      photos: { orderBy: { position: "asc" }, take: 1, select: { url: true } },
+      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+    },
   });
 
   if (templates.length === 0) return null;

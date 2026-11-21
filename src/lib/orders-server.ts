@@ -5,11 +5,11 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { mailConfigured, sendMail } from "@/lib/mail";
 import {
-  ORDER_KIND_LABEL,
+  logoText,
   ORDER_MAX_PHOTOS,
   ORDER_PHOTO_FOLDER,
   orderNumber,
-  placementText,
+  type OrderPlacementValue,
 } from "@/lib/orders";
 import { removeFiles, type StoredFile } from "@/lib/storage";
 import { fieldValue, orderSchema, orderTemplateSchema } from "@/lib/validation";
@@ -58,14 +58,26 @@ function readPhotos(formData: FormData) {
   }
 }
 
+/** Lista logo przychodzi jako JSON w ukrytym polu; zły JSON = brak logo (błąd walidacji). */
+function readLogos(formData: FormData): unknown {
+  try {
+    return JSON.parse(fieldValue(formData, "logos") || "[]");
+  } catch {
+    return [];
+  }
+}
+
+/** Logo do zapisu w bazie, z kolejnością z formularza. */
+export function logoRows(logos: { kind: "HAFT" | "DTF"; placement: OrderPlacementValue | null; description: string | null }[]) {
+  return logos.map((logo, position) => ({ ...logo, position }));
+}
+
 export function readTemplateForm(formData: FormData) {
   return {
     parsed: orderTemplateSchema.safeParse({
       name: fieldValue(formData, "name"),
-      kind: fieldValue(formData, "kind"),
       product: fieldValue(formData, "product"),
-      placements: formData.getAll("placements").filter((v) => typeof v === "string"),
-      placementNotes: fieldValue(formData, "placementNotes"),
+      logos: readLogos(formData),
       notes: fieldValue(formData, "notes"),
     }),
     photos: readPhotos(formData),
@@ -100,10 +112,8 @@ export async function removeUnusedOrderFiles(files: StoredFile[]) {
 export function readOrderForm(formData: FormData) {
   return {
     parsed: orderSchema.safeParse({
-      kind: fieldValue(formData, "kind"),
       product: fieldValue(formData, "product"),
-      placements: formData.getAll("placements").filter((v) => typeof v === "string"),
-      placementNotes: fieldValue(formData, "placementNotes"),
+      logos: readLogos(formData),
       quantity: fieldValue(formData, "quantity"),
       notes: fieldValue(formData, "notes"),
     }),
@@ -117,7 +127,11 @@ export async function notifyNewOrder(orderId: string, origin: string) {
 
   const order = await prisma.embroideryOrder.findUnique({
     where: { id: orderId },
-    include: { client: { select: { name: true, company: true } }, photos: true },
+    include: {
+      client: { select: { name: true, company: true } },
+      photos: true,
+      logos: { orderBy: { position: "asc" } },
+    },
   });
 
   if (!order) return;
@@ -125,9 +139,8 @@ export async function notifyNewOrder(orderId: string, origin: string) {
   const who = [order.client.name, order.client.company].filter(Boolean).join(" · ");
   const rows: [string, string][] = [
     ["Klient", who],
-    ["Rodzaj", ORDER_KIND_LABEL[order.kind]],
     ["Asortyment", order.product],
-    ["Umiejscowienie", placementText(order.placements, order.placementNotes)],
+    ...order.logos.map((logo, index): [string, string] => [`Logo ${index + 1}`, logoText(logo)]),
     ["Ilość", `${order.quantity} szt.`],
     ["Uwagi", order.notes ?? "—"],
   ];

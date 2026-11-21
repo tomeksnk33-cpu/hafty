@@ -7,7 +7,7 @@ import { after } from "next/server";
 
 import { requireClient } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { notifyNewOrder, readOrderForm } from "@/lib/orders-server";
+import { logoRows, notifyNewOrder, readOrderForm } from "@/lib/orders-server";
 import { orderQuantitySchema, toFormState, type FormState } from "@/lib/validation";
 
 async function requestOrigin() {
@@ -27,9 +27,12 @@ export async function createOwnOrder(_state: FormState, formData: FormData): Pro
     return toFormState(parsed.error);
   }
 
+  const { logos, ...fields } = parsed.data;
+
   const order = await prisma.embroideryOrder.create({
     data: {
-      ...parsed.data,
+      ...fields,
+      logos: { create: logoRows(logos) },
       clientId: user.clientId,
       createdById: user.id,
       photos: {
@@ -67,7 +70,10 @@ export async function createOrderFromTemplate(
 
   const template = await prisma.orderTemplate.findFirst({
     where: { id: templateId, clientId: user.clientId },
-    include: { photos: { orderBy: { position: "asc" } } },
+    include: {
+      photos: { orderBy: { position: "asc" } },
+      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+    },
   });
 
   if (!template) return { message: "Ten szablon już nie istnieje. Odśwież stronę." };
@@ -77,10 +83,8 @@ export async function createOrderFromTemplate(
       clientId: user.clientId,
       createdById: user.id,
       templateId: template.id,
-      kind: template.kind,
       product: template.product,
-      placements: template.placements,
-      placementNotes: template.placementNotes,
+      logos: { create: logoRows(template.logos) },
       notes: template.notes,
       quantity: quantity.data,
       photos: {

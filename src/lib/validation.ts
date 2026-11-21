@@ -216,11 +216,19 @@ export const clientAccountSchema = z.object({
   password: z.string().max(MAX_PASSWORD, `Hasło może mieć najwyżej ${MAX_PASSWORD} znaków`),
 });
 
+const logoSchema = z
+  .object({
+    kind: z.enum(["HAFT", "DTF"], "Wybierz rodzaj logo: haft albo DTF"),
+    placement: z.enum(["PLECY", "PRZOD_LEWY", "PRZOD_PRAWY", "REKAW"]).nullable(),
+    description: optionalText(1000),
+  })
+  .refine((logo) => logo.placement !== null || logo.description !== null, {
+    message: "Wybierz miejsce logo albo je opisz",
+  });
+
 const orderFields = {
-  kind: z.enum(["HAFT", "DTF"], "Wybierz rodzaj: haft albo DTF"),
   product: text(200).min(1, "Wpisz asortyment, np. koszulka polo granatowa"),
-  placements: z.array(z.enum(["PLECY", "PRZOD_LEWY", "PRZOD_PRAWY", "REKAW"])).max(4),
-  placementNotes: optionalText(1000),
+  logos: z.array(logoSchema).min(1, "Dodaj przynajmniej jedno logo").max(20, "Najwyżej 20 logo"),
   notes: optionalText(5000),
 };
 
@@ -232,17 +240,10 @@ export const orderQuantitySchema = z
   .refine((value) => value >= 1, "Ilość musi być co najmniej 1")
   .refine((value) => value <= 1_000_000, "Ilość jest za duża");
 
-const placementGiven = {
-  check: (order: { placements: string[]; placementNotes: string | null }) =>
-    order.placements.length > 0 || order.placementNotes !== null,
-  message: { message: "Zaznacz umiejscowienie albo opisz je", path: ["placements"] },
-};
-
-export const orderSchema = z
-  .object({ ...orderFields, quantity: orderQuantitySchema })
-  .refine(placementGiven.check, placementGiven.message);
+export const orderSchema = z.object({ ...orderFields, quantity: orderQuantitySchema });
 
 /** Szablon zlecenia klienta: wszystko poza ilością, plus nazwa widoczna na kafelku. */
-export const orderTemplateSchema = z
-  .object({ ...orderFields, name: text(100).min(1, "Nazwij szablon, np. Polo granat — logo przód") })
-  .refine(placementGiven.check, placementGiven.message);
+export const orderTemplateSchema = z.object({
+  ...orderFields,
+  name: text(100).min(1, "Nazwij szablon, np. Polo granat — logo przód"),
+});

@@ -17,7 +17,10 @@ export default async function TemplateOrderPage(props: PageProps<"/moje-zlecenia
   // Tylko szablony tego klienta — cudzy wygląda jak nieistniejący.
   const template = await prisma.orderTemplate.findFirst({
     where: { id, clientId: user.clientId },
-    include: { photos: { orderBy: { position: "asc" } } },
+    include: {
+      photos: { orderBy: { position: "asc" } },
+      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+    },
   });
 
   if (!template) notFound();

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { readTemplateForm, removeUnusedOrderFiles } from "@/lib/orders-server";
+import { logoRows, readTemplateForm, removeUnusedOrderFiles } from "@/lib/orders-server";
 import { toFormState, type FormState } from "@/lib/validation";
 
 function refresh(clientId: string) {
@@ -28,10 +28,13 @@ export async function createTemplate(
   const client = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } });
   if (!client) return { message: "Ten klient już nie istnieje." };
 
+  const { logos, ...fields } = parsed.data;
+
   await prisma.orderTemplate.create({
     data: {
-      ...parsed.data,
+      ...fields,
       clientId,
+      logos: { create: logoRows(logos) },
       photos: { create: photos.map((photo, position) => ({ ...photo, position })) },
     },
   });
@@ -58,12 +61,16 @@ export async function updateTemplate(
 
   if (!template) return { message: "Ten szablon już nie istnieje." };
 
+  const { logos, ...fields } = parsed.data;
+
   await prisma.$transaction([
     prisma.orderTemplatePhoto.deleteMany({ where: { templateId } }),
+    prisma.orderTemplateLogo.deleteMany({ where: { templateId } }),
     prisma.orderTemplate.update({
       where: { id: templateId },
       data: {
-        ...parsed.data,
+        ...fields,
+        logos: { create: logoRows(logos) },
         photos: { create: photos.map((photo, position) => ({ ...photo, position })) },
       },
     }),
