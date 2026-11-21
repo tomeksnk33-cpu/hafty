@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -9,7 +10,7 @@ import { RealizationCard, realizationCardSelect } from "@/components/realization
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate, formatMoney, plural } from "@/lib/format";
-import { ORDER_KIND_LABEL, orderNumber } from "@/lib/orders";
+import { ORDER_KIND_LABEL, orderNumber, placementText } from "@/lib/orders";
 
 import { deleteClient, saveClientAccount, setClientAccountActive } from "../actions";
 import { ClientAccountForm } from "./client-account";
@@ -22,6 +23,10 @@ export default async function ClientSummaryPage(props: PageProps<"/klienci/[id]"
     where: { id },
     include: {
       account: { select: { login: true, active: true } },
+      templates: {
+        orderBy: { name: "asc" },
+        include: { photos: { orderBy: { position: "asc" }, take: 1 } },
+      },
       orders: {
         orderBy: { createdAt: "desc" },
         take: 20,
@@ -177,6 +182,52 @@ export default async function ClientSummaryPage(props: PageProps<"/klienci/[id]"
             </ul>
           </div>
         ) : null}
+      </section>
+
+      <section id="szablony" className="card mt-6 scroll-mt-6 p-5">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Szablony zleceń</h2>
+            <p className="mt-1 text-sm text-muted">
+              Gotowe zlecenia (asortyment ze zdjęciem, rodzaj, umiejscowienie, opis). Klient wybiera szablon i podaje
+              tylko ilość.
+            </p>
+          </div>
+          <Link href={`/klienci/${client.id}/szablony/nowy`} className="btn-primary">
+            Dodaj szablon
+          </Link>
+        </div>
+
+        {client.templates.length === 0 ? (
+          <p className="text-sm text-muted">Ten klient nie ma jeszcze szablonów.</p>
+        ) : (
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {client.templates.map((template) => (
+              <li key={template.id}>
+                <Link
+                  href={`/klienci/${client.id}/szablony/${template.id}`}
+                  className="flex items-center gap-3 rounded-xl border border-line p-3 hover:border-accent/40"
+                >
+                  <span className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-paper">
+                    {template.photos[0] ? (
+                      <Image src={template.photos[0].url} alt="" fill sizes="64px" className="object-cover" />
+                    ) : null}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">{template.name}</span>
+                    <span className="block truncate text-sm text-muted">
+                      {ORDER_KIND_LABEL[template.kind]} · {placementText(template.placements, template.placementNotes)}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {client.account ? null : (
+          <p className="mt-3 text-xs text-muted">Szablony zobaczy klient po założeniu mu konta.</p>
+        )}
       </section>
 
       {topThreads.length > 0 ? (

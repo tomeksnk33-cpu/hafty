@@ -7,10 +7,11 @@ import { formatFileSize } from "@/lib/format";
 import { resizeImage } from "@/lib/resize-image";
 import { checkFile, DESIGN_ACCEPT, type UploadedFile, type UploadKind } from "@/lib/uploads";
 
-async function uploadOne(kind: UploadKind, file: File): Promise<UploadedFile> {
+async function uploadOne(kind: UploadKind, file: File, target?: "zlecenia"): Promise<UploadedFile> {
   const body = new FormData();
   body.set("file", file);
   body.set("kind", kind);
+  if (target) body.set("cel", target);
 
   const response = await fetch("/api/pliki", { method: "POST", body });
   const data: unknown = await response.json();
@@ -28,7 +29,12 @@ async function uploadOne(kind: UploadKind, file: File): Promise<UploadedFile> {
 }
 
 /** Wspólna obsługa wyboru plików: walidacja, wysyłka, komunikat błędu. */
-export function useUploader(kind: UploadKind, onAdd: (files: UploadedFile[]) => void) {
+export function useUploader(
+  kind: UploadKind,
+  onAdd: (files: UploadedFile[]) => void,
+  /** „zlecenia" — zdjęcia do zleceń i szablonów klientów (osobny folder). */
+  target?: "zlecenia",
+) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,7 +57,7 @@ export function useUploader(kind: UploadKind, onAdd: (files: UploadedFile[]) => 
       }
 
       try {
-        uploaded.push(await uploadOne(kind, file));
+        uploaded.push(await uploadOne(kind, file, target));
       } catch (uploadError) {
         problems.push(
           uploadError instanceof Error ? uploadError.message : `Nie wysłano „${file.name}”.`,

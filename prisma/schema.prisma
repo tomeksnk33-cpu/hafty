@@ -44,7 +44,7 @@ model User {
   updatedAt             DateTime @updatedAt
 
   /// Konto klienta haftów: widzi tylko swoje zlecenia i nie ma dostępu do żadnej aplikacji pracowników.
-  clientId              String?  @unique
+  clientId String? @unique
 
   workEntries   WorkEntry[]
   laundryRoutes LaundryRoute[]
@@ -88,6 +88,7 @@ model Client {
   realizations Realization[]
   account      User?
   orders       EmbroideryOrder[]
+  templates    OrderTemplate[]
 
   @@index([name])
 }
@@ -118,6 +119,8 @@ model EmbroideryOrder {
   number         Int              @unique @default(autoincrement())
   clientId       String
   createdById    String?
+  /// Szablon, z którego klient złożył zlecenie (podaje wtedy tylko ilość).
+  templateId     String?
   kind           OrderKind
   /// Asortyment, np. „koszulka polo granatowa".
   product        String
@@ -130,8 +133,9 @@ model EmbroideryOrder {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  client    Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  createdBy User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  client    Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdBy User?          @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  template  OrderTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   photos    OrderPhoto[]
 
   @@index([clientId, createdAt])
@@ -584,4 +588,44 @@ model AttendanceShift {
 
   @@index([startedAt])
   @@index([personId, endedAt])
+}
+
+/**
+ * Szablon zlecenia przygotowany dla klienta: asortyment ze zdjęciami, rodzaj,
+ * umiejscowienie i opis. Klient wybiera go i podaje tylko ilość.
+ */
+model OrderTemplate {
+  id             String           @id @default(cuid())
+  clientId       String
+  /// Nazwa na kafelku, np. „Polo granat — logo przód lewy".
+  name           String
+  kind           OrderKind
+  product        String
+  placements     OrderPlacement[]
+  placementNotes String?
+  notes          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  client Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  photos OrderTemplatePhoto[]
+  orders EmbroideryOrder[]
+
+  @@index([clientId, name])
+}
+
+/// Zdjęcie asortymentu w szablonie. Zlecenia z szablonu używają tych samych plików.
+model OrderTemplatePhoto {
+  id         String   @id @default(cuid())
+  templateId String
+  url        String
+  pathname   String
+  filename   String
+  sizeBytes  Int
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  template OrderTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
 }

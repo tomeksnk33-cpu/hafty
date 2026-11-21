@@ -216,20 +216,33 @@ export const clientAccountSchema = z.object({
   password: z.string().max(MAX_PASSWORD, `Hasło może mieć najwyżej ${MAX_PASSWORD} znaków`),
 });
 
-export const orderSchema = z.object({
+const orderFields = {
   kind: z.enum(["HAFT", "DTF"], "Wybierz rodzaj: haft albo DTF"),
   product: text(200).min(1, "Wpisz asortyment, np. koszulka polo granatowa"),
   placements: z.array(z.enum(["PLECY", "PRZOD_LEWY", "PRZOD_PRAWY", "REKAW"])).max(4),
   placementNotes: optionalText(1000),
-  quantity: z
-    .string()
-    .overwrite((value) => value.replace(/\s/g, ""))
-    .regex(/^\d+$/, "Podaj ilość sztuk")
-    .transform(Number)
-    .refine((value) => value >= 1, "Ilość musi być co najmniej 1")
-    .refine((value) => value <= 1_000_000, "Ilość jest za duża"),
   notes: optionalText(5000),
-}).refine((order) => order.placements.length > 0 || order.placementNotes !== null, {
-  message: "Zaznacz umiejscowienie albo opisz je",
-  path: ["placements"],
-});
+};
+
+export const orderQuantitySchema = z
+  .string()
+  .overwrite((value) => value.replace(/\s/g, ""))
+  .regex(/^\d+$/, "Podaj ilość sztuk")
+  .transform(Number)
+  .refine((value) => value >= 1, "Ilość musi być co najmniej 1")
+  .refine((value) => value <= 1_000_000, "Ilość jest za duża");
+
+const placementGiven = {
+  check: (order: { placements: string[]; placementNotes: string | null }) =>
+    order.placements.length > 0 || order.placementNotes !== null,
+  message: { message: "Zaznacz umiejscowienie albo opisz je", path: ["placements"] },
+};
+
+export const orderSchema = z
+  .object({ ...orderFields, quantity: orderQuantitySchema })
+  .refine(placementGiven.check, placementGiven.message);
+
+/** Szablon zlecenia klienta: wszystko poza ilością, plus nazwa widoczna na kafelku. */
+export const orderTemplateSchema = z
+  .object({ ...orderFields, name: text(100).min(1, "Nazwij szablon, np. Polo granat — logo przód") })
+  .refine(placementGiven.check, placementGiven.message);
