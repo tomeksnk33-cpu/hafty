@@ -8,8 +8,6 @@ import { logosText, orderNumber } from "@/lib/orders";
 
 import { TemplateTiles } from "./template-tiles";
 
-import { TemplateTiles } from "./template-tiles";
-
 export const dynamic = "force-dynamic";
 
 export default async function MyOrdersPage() {
