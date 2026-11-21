@@ -376,14 +376,33 @@ async function deviceHints() {
 const plain = list => list.map(({ client, item, qty, unit, kg }) => ({ client, item, qty, unit: unit || "szt", ...(unit === "szt_kg" ? { kg } : {}) }));
 // zapis wypranego prania na magazyn
 async function finishRoute(spoken) {
-  if (!local.route.length) { if (spoken) await say("Lista jest pusta"); else alert("Lista jest pusta."); return; }
-  if (!spoken && !confirm("Zapisać wyprane pranie na magazyn?")) return;
+  if (!local.route.length) { if (spoken) await say("Lista jest pusta"); else bigAsk("Lista jest pusta.", { no: null }); return; }
+  if (!spoken && !(await bigAsk("Zapisać wyprane pranie na magazyn?", { yes: "✓ Zapisz na magazyn" }))) return;
   stop();
   local.pending.push({ kind: "magazyn", id: local.routeId || newId(), date: new Date().toISOString(), route: plain(local.route) });
   local.route = []; local.routeId = null; mode = "client"; currentClient = null; save(); ui();
   const ok = await flushPending(true);
   const msg = ok ? "Zapisano na magazynie." : "Nie udało się zapisać, spróbuję ponownie.";
-  if (spoken) await say(msg, { thenListen: false }); else log(msg, ok ? "ok" : "bad");
+  if (spoken) await say(msg, { thenListen: false });
+  else { log(msg, ok ? "ok" : "bad"); bigAsk((ok ? "✓ " : "⚠ ") + msg, { no: null, autoClose: ok ? 2500 : 0 }); }
+}
+// duże okno na środku ekranu zamiast małego komunikatu przeglądarki.
+// noLabel = null pokazuje tylko jeden przycisk; autoClose (ms) zamyka samo.
+function bigAsk(text, { yes = "OK", no = "Anuluj", autoClose = 0 } = {}) {
+  return new Promise(resolve => {
+    const dlg = $("#bigDlg");
+    $("#bigText").textContent = text;
+    $("#bigYes").textContent = yes;
+    $("#bigNo").hidden = !no; $("#bigNo").textContent = no || "";
+    $("#bigBtns").classList.toggle("one", !no);
+    let done = false, timer = 0;
+    const finish = v => { if (done) return; done = true; clearTimeout(timer); dlg.close(); resolve(v); };
+    $("#bigYes").onclick = () => finish(true);
+    $("#bigNo").onclick = () => finish(false);
+    dlg.oncancel = () => finish(false);
+    dlg.showModal(); $("#bigYes").focus();
+    if (autoClose) timer = setTimeout(() => finish(true), autoClose);
+  });
 }
 // okienko z polem tekstowym zamiast window.prompt — działa z klawiaturą ekranową
 function ask(text, value = "", { password = false } = {}) {

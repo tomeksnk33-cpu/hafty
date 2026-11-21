@@ -101,6 +101,19 @@ main:has(#trasa.on),main:has(#magazyn.on){max-width:1800px}
 .abc button{min-width:clamp(44px,3.3vw,64px);height:clamp(44px,3.3vw,64px);font:inherit;font-size:clamp(18px,1.4vw,26px);font-weight:700;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);cursor:pointer;padding:0 10px}
 .abc button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .abc button:disabled{opacity:.3;cursor:default}
+.tCanvas{max-height:calc(100vh - 360px);min-height:260px;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:clamp(8px,.8vw,14px);align-content:start}
+@media (min-width:1100px){
+  .magSide{position:static}
+  .magSide .card{max-height:none}
+  .magSide #summary{max-height:45vh}
+}
+dialog#bigDlg{border:0;border-radius:20px;background:var(--card);color:var(--ink);padding:clamp(20px,2.5vw,40px);width:min(720px,calc(100vw - 24px));text-align:center}
+dialog#bigDlg::backdrop{background:rgba(0,0,0,.5)}
+#bigText{font-size:clamp(22px,2.2vw,36px);font-weight:700;margin:0 0 24px;white-space:pre-line}
+#bigDlg .bigBtns{display:grid;grid-template-columns:1fr 2fr;gap:14px}
+#bigDlg .bigBtns.one{grid-template-columns:1fr}
+#bigDlg button{font:inherit;font-size:clamp(20px,2vw,32px);font-weight:700;min-height:clamp(70px,7vw,110px);border-radius:16px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+#bigDlg button.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(150px,13vw,260px),1fr));gap:clamp(8px,.8vw,14px)}
 .tile{min-height:clamp(70px,7vw,120px);border:2px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);font:inherit;font-size:clamp(17px,1.45vw,26px);font-weight:700;line-height:1.2;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;text-align:left;gap:4px;touch-action:manipulation}
 .tile:active{transform:scale(.98)}
@@ -186,7 +199,7 @@ dialog#askDlg::backdrop{background:rgba(0,0,0,.45)}
     <div id="tClientStep">
       <h2 class="tStep">1. Wybierz klienta</h2>
       <div class="abc" id="tAbc"></div>
-      <div class="tiles" id="tClients"></div>
+      <div class="tiles tCanvas" id="tClients"></div>
     </div>
     <div id="tItemStep" hidden>
       <div class="tHead">
@@ -212,7 +225,9 @@ dialog#askDlg::backdrop{background:rgba(0,0,0,.45)}
     </div>
     <div class="log" id="log"></div>
   </div>
-<!-- zgłoszenia odbioru prania: SMS od klienta albo dodane ręcznie -->
+  </div>
+  <aside class="trasaSide magSide">
+  <!-- zgłoszenia odbioru prania: SMS od klienta albo dodane ręcznie -->
   <div class="card pickups" id="pickups">
     <div class="row" style="justify-content:space-between">
       <h2 class="tStep" style="margin:0">📞 Do odebrania <span id="pkCount"></span></h2>
@@ -226,13 +241,6 @@ dialog#askDlg::backdrop{background:rgba(0,0,0,.45)}
     <div id="pkList"></div>
     <details id="pkDoneBox" hidden><summary class="small">Odebrane w ostatniej dobie (<span id="pkDoneCount"></span>)</summary><div id="pkDone"></div></details>
   </div>
-  <div class="card" id="stockCard">
-    <div class="row" style="justify-content:space-between"><h2 style="margin:0">📦 Stan magazynu <span id="stCount"></span></h2><button class="btn" id="stRefresh">Odśwież</button></div>
-    <div id="stList" class="scroll" style="margin-top:8px"></div>
-    <details id="stRecentBox"><summary class="small">Ostatnio przyjęte na magazyn</summary><div id="stRecent" class="scroll"></div></details>
-  </div>
-  </div>
-  <aside class="trasaSide">
   <div class="card">
     <h2>Wyprane – do zapisania</h2>
     <div id="summary" class="small">Brak wpisów.</div>
@@ -243,6 +251,11 @@ dialog#askDlg::backdrop{background:rgba(0,0,0,.45)}
         <button class="btn del" id="clearRoute">Wyczyść listę</button>
       </div>
     </div>
+  </div>
+  <div class="card" id="stockCard">
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">📦 Stan magazynu <span id="stCount"></span></h2><button class="btn" id="stRefresh">Odśwież</button></div>
+    <div id="stList" class="scroll" style="margin-top:8px"></div>
+    <details id="stRecentBox"><summary class="small">Ostatnio przyjęte na magazyn</summary><div id="stRecent" class="scroll"></div></details>
   </div>
   </aside>
   </div>
@@ -387,6 +400,10 @@ dialog#askDlg::backdrop{background:rgba(0,0,0,.45)}
   </div>
 </section>
 
+<dialog id="bigDlg" aria-labelledby="bigText">
+  <p id="bigText"></p>
+  <div class="bigBtns" id="bigBtns"><button type="button" id="bigNo">Anuluj</button><button type="button" class="pri" id="bigYes" data-ok>OK</button></div>
+</dialog>
 <dialog id="askDlg" aria-labelledby="askText">
   <p id="askText" style="white-space:pre-line;margin:0 0 10px;font-weight:600"></p>
   <input id="askInput" autocomplete="off" style="width:100%;font-size:clamp(16px,1.3vw,22px);padding:10px 12px">
