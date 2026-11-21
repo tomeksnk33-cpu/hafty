@@ -52,7 +52,7 @@ async function loadCatalog() {
 // one change to the shared catalog (add / edit / delete a single row), then refresh the lists
 async function changeCatalog(opts) {
   try { await api("katalog" + (opts.query || ""), opts); }
-  catch (e) { alert((e.status === 404 ? "" : "Nie zapisano: ") + e.message); }
+  catch (e) { bigAlert((e.status === 404 ? "" : "Nie zapisano: ") + e.message); }
   await loadCatalog();
 }
 
@@ -318,9 +318,9 @@ function renderSummary() {
   const kg = local.route.reduce((a, r) => a + (r.unit === "kg" ? r.qty : r.unit === "szt_kg" ? r.kg || 0 : 0), 0);
   h += `<div class='rTotal'>Klientów: <b>${byClient.size}</b> · wpisów: <b>${local.route.length}</b>${pcs ? " · " + fmtQty(r2(pcs), "szt") : ""}${kg ? " · " + fmtQty(r2(kg), "kg") : ""}</div>`;
   $("#summary").innerHTML = h;
-  $("#summary").querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+  $("#summary").querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
     const r = local.route[+b.dataset.del]; if (!r) return;
-    if (!confirm(`Usunąć z listy: ${r.client} – ${r.item} ${fmtEntry(r)}?`)) return;
+    if (!await bigYes(`Usunąć z listy: ${r.client} – ${r.item} ${fmtEntry(r)}?`)) return;
     local.route.splice(+b.dataset.del, 1); if (!local.route.length) local.routeId = null;
     save(); log("Usunięto: " + r.client + " – " + r.item + " " + fmtEntry(r), "warn"); ui();
   });
@@ -388,7 +388,16 @@ async function finishRoute(spoken) {
 }
 // duże okno na środku ekranu zamiast małego komunikatu przeglądarki.
 // noLabel = null pokazuje tylko jeden przycisk; autoClose (ms) zamyka samo.
-function bigAsk(text, { yes = "OK", no = "Anuluj", autoClose = 0 } = {}) {
+// okna idą po kolei (drugie czeka, aż zamknie się pierwsze)
+let bigQueue = Promise.resolve();
+function bigAsk(text, opts = {}) {
+  const p = bigQueue.then(() => showBig(text, opts));
+  bigQueue = p.catch(() => {});
+  return p;
+}
+const bigAlert = text => bigAsk(text, { no: null });
+const bigYes = text => bigAsk(text, { yes: "Tak", no: "Anuluj" });
+function showBig(text, { yes = "OK", no = "Anuluj", autoClose = 0 } = {}) {
   return new Promise(resolve => {
     const dlg = $("#bigDlg");
     $("#bigText").textContent = text;
@@ -425,7 +434,7 @@ async function deleteRoute(id, label) {
   const pass = await ask(`Usunąć całą trasę ${label}? Tego nie da się cofnąć.\nPodaj hasło usuwania:`, "", { password: true });
   if (pass === null) return false;
   try { await api("trasy?id=" + encodeURIComponent(id), { method: "DELETE", headers: { "X-Haslo-Usuniecia": pass.trim() } }); }
-  catch (e) { alert("Nie usunięto: " + e.message); return false; }
+  catch (e) { bigAlert("Nie usunięto: " + e.message); return false; }
   loadHistory();
   if (document.querySelector("#grafik.on")) loadGrafik();
   return true;
@@ -441,8 +450,8 @@ async function loadHistory() {
     li.innerHTML = `<span>${new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })} · <b>${esc(h.worker || "—")}</b>${h.line ? " · trasa " + esc(h.line) : ""}<br><span class='small'>${h.clients} klientów${h.total ? ", " + fmtQty(h.total, "szt") : ""}${h.totalKg ? ", " + fmtQty(h.totalKg, "kg") : ""} ${h.mailedAt ? "· mail wysłany" : "· <span class='bad'>mail niewysłany</span>"}</span></span><span class='row'><button class='btn' data-r>Wyślij ponownie</button>${local.isAdmin ? "<button class='btn del' data-x>Usuń</button>" : ""}</span>`;
     if (local.isAdmin) li.querySelector("[data-x]").onclick = () => deleteRoute(h.id, new Date(h.date).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" }) + " · " + (h.worker || "—"));
     li.querySelector("[data-r]").onclick = async () => {
-      try { await api("trasy", { method: "POST", body: { id: h.id, resend: true } }); alert("Wysłano ponownie."); }
-      catch (e) { alert(e.message); }
+      try { await api("trasy", { method: "POST", body: { id: h.id, resend: true } }); bigAlert("Wysłano ponownie."); }
+      catch (e) { bigAlert(e.message); }
       loadHistory();
     };
     ul.append(li);
@@ -451,7 +460,7 @@ async function loadHistory() {
 
 // ---------- controls ----------
 function start() {
-  if (!SR) { alert("Ta przeglądarka nie obsługuje rozpoznawania mowy. Użyj Chrome na Androidzie lub Safari na iPhonie. Możesz też wpisywać tekst ręcznie."); return; }
+  if (!SR) { bigAlert("Ta przeglądarka nie obsługuje rozpoznawania mowy. Użyj Chrome na Androidzie lub Safari na iPhonie. Możesz też wpisywać tekst ręcznie."); return; }
   if (!rec) rec = setupRec();
   running = true; ui();
   say(mode === "client" ? "Podaj klienta" : "Podaj asortyment");
@@ -462,7 +471,7 @@ $("#typedGo").onclick = () => { const v = $("#typed").value.trim(); if (v) { $("
 $("#typed").onkeydown = e => { if (e.key === "Enter") $("#typedGo").click(); };
 $("#sendNow").onclick = () => finishRoute(false);
 $("#copySum").onclick = () => { navigator.clipboard?.writeText(summaryText(local.route)); log("Skopiowano listę"); };
-$("#clearRoute").onclick = () => { if (confirm("Usunąć wszystkie wpisy z listy?")) { local.route = []; local.routeId = null; mode = "client"; currentClient = null; save(); ui(); } };
+$("#clearRoute").onclick = async () => { if (await bigYes("Usunąć wszystkie wpisy z listy?")) { local.route = []; local.routeId = null; mode = "client"; currentClient = null; save(); ui(); } };
 $("#histRefresh").onclick = loadHistory;
 
 document.querySelectorAll("nav button[data-tab]").forEach(b => b.onclick = () => {
@@ -498,25 +507,25 @@ function currentPosition() {
 async function captureLocation(clientId) {
   const c = cat().clients.find(x => x.id === clientId);
   if (!c || geoBusy.has(clientId)) return;
-  if (c.location && !confirm(`„${c.name}” ma już zapisaną lokalizację. Zastąpić ją miejscem, w którym teraz jesteś?`)) return;
+  if (c.location && !await bigYes(`„${c.name}” ma już zapisaną lokalizację. Zastąpić ją miejscem, w którym teraz jesteś?`)) return;
   geoBusy.add(clientId); renderClientGeo(); renderList("c");
   try {
     const pos = await currentPosition();
     const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-    if (accuracy > 150 && !confirm(`Telefon podaje położenie z dokładnością tylko ±${Math.round(accuracy)} m. Zapisać mimo to?\n\nLepiej wyjść na zewnątrz, włączyć GPS i spróbować ponownie.`)) return;
+    if (accuracy > 150 && !await bigYes(`Telefon podaje położenie z dokładnością tylko ±${Math.round(accuracy)} m. Zapisać mimo to?\n\nLepiej wyjść na zewnątrz, włączyć GPS i spróbować ponownie.`)) return;
     const d = await api("lokalizacja", { method: "PUT", body: { clientId, lat, lng, accuracy } });
     c.location = d.location; save();
     log("Zapisano lokalizację: " + c.name + (accuracy ? " (±" + Math.round(accuracy) + " m)" : ""), "ok");
   } catch (e) {
-    alert("Nie zapisano lokalizacji: " + e.message);
+    bigAlert("Nie zapisano lokalizacji: " + e.message);
     if (e.status === 404) await loadCatalog();
   } finally { geoBusy.delete(clientId); renderClientGeo(); renderList("c"); }
 }
 async function clearLocation(clientId) {
   const c = cat().clients.find(x => x.id === clientId);
-  if (!c || !confirm(`Usunąć zapisaną lokalizację klienta „${c.name}”?`)) return;
+  if (!c || !await bigYes(`Usunąć zapisaną lokalizację klienta „${c.name}”?`)) return;
   try { await api("lokalizacja?clientId=" + encodeURIComponent(clientId), { method: "DELETE" }); c.location = null; save(); }
-  catch (e) { alert("Nie usunięto: " + e.message); }
+  catch (e) { bigAlert("Nie usunięto: " + e.message); }
   renderClientGeo(); renderList("c");
 }
 const geoButton = (id, has) => `<button class='btn' data-g ${geoBusy.has(id) ? "disabled" : ""}>${geoBusy.has(id) ? "⏳ Ustalam położenie…" : has ? "📍 Pobierz ponownie" : "📍 Pobierz dane geolokalizacji"}</button>`;
@@ -554,8 +563,8 @@ function renderList(kind) {
     const ub = li.querySelector("[data-u]");
     if (ub) ub.onchange = () => changeCatalog({ method: "PUT", body: { id: x.id, name: x.name, billKg: ub.checked } });
     if (!canEdit) { ul.append(li); return; }
-    li.querySelector("[data-d]").onclick = () => {
-      if (confirm("Usunąć „" + x.name + "”?")) changeCatalog({ method: "DELETE", query: "?id=" + encodeURIComponent(x.id) });
+    li.querySelector("[data-d]").onclick = async () => {
+      if (await bigYes("Usunąć „" + x.name + "”?")) changeCatalog({ method: "DELETE", query: "?id=" + encodeURIComponent(x.id) });
     };
     li.querySelector("[data-e]").onclick = async () => {
       const n = await ask("Nazwa:", x.name); if (n === null) return;
@@ -864,7 +873,7 @@ $("#pCopyFrom").onchange = async e => {
   const src = priceList.filter(p => p.clientId === from);
   const fromName = cat().clients.find(c => c.id === from)?.name;
   if (!src.length) { $("#pNote").textContent = `„${fromName}” nie ma jeszcze cen.`; return; }
-  if (!confirm(`Skopiować ${src.length} cen od „${fromName}”? Ceny tego klienta dla tych pozycji zostaną zastąpione.`)) return;
+  if (!await bigYes(`Skopiować ${src.length} cen od „${fromName}”? Ceny tego klienta dla tych pozycji zostaną zastąpione.`)) return;
   let ok = 0;
   for (const p of src) { try { await api("cennik", { method: "PUT", body: { clientId: pc.client, itemId: p.itemId, szt: p.szt, kg: p.kg } }); ok++; } catch (err) {} }
   $("#pNote").textContent = `Skopiowano ${ok} z ${src.length} cen.`;
@@ -921,20 +930,20 @@ function renderPickups(fresh = new Set()) {
     const on = (sel, fn) => { const b = el.querySelector(sel); if (b) b.onclick = fn; };
     on("[data-done]", () => patchPickup(p, { done: true }));
     on("[data-undo]", () => patchPickup(p, { done: false }));
-    on("[data-x]", async () => { if (!confirm("Usunąć to zgłoszenie?")) return; try { await api("odbiory?id=" + encodeURIComponent(p.id), { method: "DELETE" }); } catch (e) { alert(e.message); } loadPickups(); });
+    on("[data-x]", async () => { if (!await bigYes("Usunąć to zgłoszenie?")) return; try { await api("odbiory?id=" + encodeURIComponent(p.id), { method: "DELETE" }); } catch (e) { bigAlert(e.message); } loadPickups(); });
     const sel = el.querySelector("[data-assign]");
     if (sel) sel.onchange = async () => {
       const c = cat().clients.find(x => x.id === sel.value); if (!c) return;
       await patchPickup(p, { done: false, clientId: c.id });
       // administrator może od razu zapamiętać numer u klienta, żeby kolejne SMS-y rozpoznawały się same
-      if (local.canManage && p.phone && !(c.phones || []).includes(p.phone) && confirm(`Zapisać numer ${fmtPhone(p.phone)} u klienta „${c.name}”?`))
+      if (local.canManage && p.phone && !(c.phones || []).includes(p.phone) && await bigYes(`Zapisać numer ${fmtPhone(p.phone)} u klienta „${c.name}”?`))
         await changeCatalog({ method: "PUT", body: { id: c.id, name: c.name, aliases: c.aliases || [], phones: [...(c.phones || []), p.phone] } });
     };
   });
 }
 async function patchPickup(p, body) {
   try { await api("odbiory", { method: "PATCH", body: { id: p.id, ...body } }); }
-  catch (e) { alert("Nie zapisano: " + e.message); }
+  catch (e) { bigAlert("Nie zapisano: " + e.message); }
   await loadPickups();
 }
 function fillPickupClients() {
@@ -943,9 +952,9 @@ function fillPickupClients() {
 $("#pkAddOpen").onclick = () => { fillPickupClients(); $("#pkAdd").hidden = false; };
 $("#pkAddCancel").onclick = () => { $("#pkAdd").hidden = true; };
 $("#pkAddGo").onclick = async () => {
-  const clientId = $("#pkClient").value; if (!clientId) { alert("Wybierz klienta."); return; }
+  const clientId = $("#pkClient").value; if (!clientId) { bigAlert("Wybierz klienta."); return; }
   try { await api("odbiory", { method: "POST", body: { clientId, message: $("#pkMsg").value.trim() || undefined } }); }
-  catch (e) { alert("Nie dodano: " + e.message); return; }
+  catch (e) { bigAlert("Nie dodano: " + e.message); return; }
   $("#pkMsg").value = ""; $("#pkAdd").hidden = true; loadPickups();
 };
 setInterval(() => { if (document.visibilityState === "visible") loadPickups(); }, 60000);
@@ -1132,8 +1141,8 @@ async function fixStock(s) {
     if (k === null) return;
     body.kg = Number(k.replace(",", "."));
   }
-  if (!(body.qty >= 0) || (body.kg !== undefined && !(body.kg >= 0))) { alert("Podaj liczbę 0 lub większą."); return; }
-  try { await api("magazyn", { method: "PATCH", body }); } catch (e) { alert("Nie zapisano: " + e.message); }
+  if (!(body.qty >= 0) || (body.kg !== undefined && !(body.kg >= 0))) { bigAlert("Podaj liczbę 0 lub większą."); return; }
+  try { await api("magazyn", { method: "PATCH", body }); } catch (e) { bigAlert("Nie zapisano: " + e.message); }
   loadStock();
 }
 $("#stRefresh").onclick = loadStock;
@@ -1265,15 +1274,15 @@ function renderDriveSummary() {
   }
   h += `<div class='rTotal'>Klientów: <b>${byClient.size}</b> · wpisów: <b>${route.length}</b></div>`;
   $("#dSummary").innerHTML = h;
-  $("#dSummary").querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+  $("#dSummary").querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
     const r = route[+b.dataset.del]; if (!r) return;
-    if (!confirm(`Usunąć z trasy: ${r.client} – ${r.item} ${fmtEntry(r)}? Pranie wróci do magazynu.`)) return;
+    if (!await bigYes(`Usunąć z trasy: ${r.client} – ${r.item} ${fmtEntry(r)}? Pranie wróci do magazynu.`)) return;
     route.splice(+b.dataset.del, 1); if (!route.length) local.drv.routeId = null;
     save(); renderDrive();
   });
 }
 $("#dCopy").onclick = () => { navigator.clipboard?.writeText(summaryText(local.drv.route)); };
-$("#dClear").onclick = () => { if (confirm("Usunąć wszystkie wpisy bieżącej trasy? Pranie wróci do magazynu.")) { local.drv.route = []; local.drv.routeId = null; drv.client = null; save(); renderDrive(); } };
+$("#dClear").onclick = async () => { if (await bigYes("Usunąć wszystkie wpisy bieżącej trasy? Pranie wróci do magazynu.")) { local.drv.route = []; local.drv.routeId = null; drv.client = null; save(); renderDrive(); } };
 // ---------- ustawienia pralni (administrator) i data trasy ----------
 const todayKey = () => dk(new Date());
 function applySettings() {
@@ -1286,7 +1295,7 @@ function applySettings() {
 }
 async function saveSettings(body) {
   try { local.settings = await api("ustawienia", { method: "PUT", body }); save(); $("#aSaved").textContent = "Zapisano."; }
-  catch (e) { alert("Nie zapisano: " + e.message); }
+  catch (e) { bigAlert("Nie zapisano: " + e.message); }
   applySettings();
 }
 $("#aHideVoice").onchange = e => saveSettings({ hideVoice: e.target.checked });
@@ -1301,17 +1310,17 @@ function routeDate() {
 
 $("#dSend").onclick = async () => {
   const d = local.drv;
-  if (!d.route.length) { alert("Trasa jest pusta."); return; }
+  if (!d.route.length) { bigAlert("Trasa jest pusta."); return; }
   const date = routeDate();
   const other = dk(date) !== todayKey() ? ` z datą ${new Date(date).toLocaleDateString("pl-PL")}` : "";
-  if (!confirm(`Zakończyć trasę${other} i wysłać podsumowanie?`)) return;
+  if (!await bigYes(`Zakończyć trasę${other} i wysłać podsumowanie?`)) return;
   const device = await deviceHints();
   const named = d.line && d.line !== ALL && d.line !== NONE ? lineName(d.line) : undefined;
   local.pending.push({ kind: "trasa", id: d.routeId || newId(), line: named, worker: local.worker, date, device, route: plain(d.route) });
   d.route = []; d.routeId = null; d.line = ""; drv.client = null; save(); renderDrive();
   $("#dDate").value = todayKey();
   const ok = await flushPending(true);
-  alert(ok ? "Koniec trasy. Podsumowanie wysłane." : "Nie udało się wysłać. Trasa czeka na tym urządzeniu i wyśle się sama, gdy wróci połączenie.");
+  bigAlert(ok ? "Koniec trasy. Podsumowanie wysłane." : "Nie udało się wysłać. Trasa czeka na tym urządzeniu i wyśle się sama, gdy wróci połączenie.");
 };
 
 // ---------- trasy kierowców (zakładka Klienci, kierownik) ----------
@@ -1327,12 +1336,12 @@ function renderLines() {
     if (!local.isAdmin) { ul.append(li); continue; }
     li.querySelector("[data-e]").onclick = async () => {
       const name = await ask("Nazwa trasy:", l.name); if (!name || !name.trim()) return;
-      try { await api("linie", { method: "PUT", body: { id: l.id, name: name.trim() } }); } catch (e) { alert("Nie zapisano: " + e.message); }
+      try { await api("linie", { method: "PUT", body: { id: l.id, name: name.trim() } }); } catch (e) { bigAlert("Nie zapisano: " + e.message); }
       loadCatalog();
     };
     li.querySelector("[data-d]").onclick = async () => {
-      if (!confirm(`Usunąć trasę „${l.name}”? Klienci zostaną, tylko bez przypisanej trasy.`)) return;
-      try { await api("linie?id=" + encodeURIComponent(l.id), { method: "DELETE" }); } catch (e) { alert(e.message); }
+      if (!await bigYes(`Usunąć trasę „${l.name}”? Klienci zostaną, tylko bez przypisanej trasy.`)) return;
+      try { await api("linie?id=" + encodeURIComponent(l.id), { method: "DELETE" }); } catch (e) { bigAlert(e.message); }
       loadCatalog();
     };
     ul.append(li);
@@ -1342,13 +1351,13 @@ function renderLines() {
 }
 $("#lAdd").onclick = async () => {
   const name = $("#lName").value.trim(); if (!name) return;
-  try { await api("linie", { method: "POST", body: { name } }); $("#lName").value = ""; } catch (e) { alert("Nie dodano: " + e.message); }
+  try { await api("linie", { method: "POST", body: { name } }); $("#lName").value = ""; } catch (e) { bigAlert("Nie dodano: " + e.message); }
   loadCatalog();
 };
 
 // wylogowanie: niewysłane wpisy zostają na urządzeniu i wyślą się po ponownym zalogowaniu
 $("#logout").onclick = async () => {
-  if (local.pending.length && !confirm("Na tym urządzeniu czekają niewysłane wpisy. Zostaną tutaj i wyślą się po ponownym zalogowaniu. Wylogować?")) return;
+  if (local.pending.length && !await bigYes("Na tym urządzeniu czekają niewysłane wpisy. Zostaną tutaj i wyślą się po ponownym zalogowaniu. Wylogować?")) return;
   try { await fetch("/api/wyloguj", { method: "POST" }); } catch (e) {}
   location.href = "/login";
 };

@@ -172,8 +172,13 @@ dialog#qDialog::backdrop{background:rgba(0,0,0,.5)}
 dialog#gDialog::backdrop{background:rgba(0,0,0,.45)}
 .logout{font:inherit;font-size:14px;font-weight:600;color:inherit;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.55);border-radius:8px;padding:6px 12px;cursor:pointer}
 .logout:hover{background:rgba(255,255,255,.28)}
-dialog#askDlg{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);padding:16px;width:min(560px,calc(100vw - 24px))}
-dialog#askDlg::backdrop{background:rgba(0,0,0,.45)}
+dialog#askDlg{border:0;border-radius:20px;background:var(--card);color:var(--ink);padding:clamp(20px,2.5vw,40px);width:min(720px,calc(100vw - 24px))}
+dialog#askDlg::backdrop{background:rgba(0,0,0,.5)}
+#askText{font-size:clamp(20px,1.9vw,30px);font-weight:700;white-space:pre-line;margin:0 0 16px;text-align:center}
+#askInput{width:100%;font-size:clamp(20px,1.8vw,30px);padding:14px 16px;border-radius:14px}
+#askDlg .bigBtns{display:grid;grid-template-columns:1fr 2fr;gap:14px;margin-top:20px}
+#askDlg .bigBtns button{font:inherit;font-size:clamp(20px,2vw,32px);font-weight:700;min-height:clamp(64px,6vw,100px);border-radius:16px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+#askDlg .bigBtns button.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -405,9 +410,9 @@ dialog#askDlg::backdrop{background:rgba(0,0,0,.45)}
   <div class="bigBtns" id="bigBtns"><button type="button" id="bigNo">Anuluj</button><button type="button" class="pri" id="bigYes" data-ok>OK</button></div>
 </dialog>
 <dialog id="askDlg" aria-labelledby="askText">
-  <p id="askText" style="white-space:pre-line;margin:0 0 10px;font-weight:600"></p>
-  <input id="askInput" autocomplete="off" style="width:100%;font-size:clamp(16px,1.3vw,22px);padding:10px 12px">
-  <div class="row" style="justify-content:flex-end;margin-top:12px"><button type="button" class="btn" id="askCancel">Anuluj</button><button type="button" class="btn pri" id="askOk" data-ok>OK</button></div>
+  <p id="askText"></p>
+  <input id="askInput" autocomplete="off">
+  <div class="bigBtns"><button type="button" id="askCancel">Anuluj</button><button type="button" class="pri" id="askOk" data-ok>OK</button></div>
 </dialog>
 <dialog id="gDialog" aria-labelledby="gDayTitle">
   <div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:nowrap">
