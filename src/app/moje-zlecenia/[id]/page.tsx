@@ -19,7 +19,10 @@ export default async function MyOrderPage(props: PageProps<"/moje-zlecenia/[id]"
   // Cudze zlecenie wygląda tak samo jak nieistniejące.
   const order = await prisma.embroideryOrder.findFirst({
     where: { id, clientId: user.clientId },
-    include: { photos: { orderBy: { position: "asc" } } },
+    include: {
+      photos: { orderBy: { position: "asc" } },
+      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+    },
   });
 
   if (!order) notFound();

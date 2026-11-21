@@ -10,7 +10,7 @@ import { RealizationCard, realizationCardSelect } from "@/components/realization
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate, formatMoney, plural } from "@/lib/format";
-import { ORDER_KIND_LABEL, orderNumber, templateItem } from "@/lib/orders";
+import { logosText, orderNumber, templateItem } from "@/lib/orders";
 
 import { deleteClient, saveClientAccount, setClientAccountActive } from "../actions";
 import { ClientAccountForm } from "./client-account";
@@ -25,12 +25,23 @@ export default async function ClientSummaryPage(props: PageProps<"/klienci/[id]"
       account: { select: { login: true, active: true } },
       templates: {
         orderBy: { name: "asc" },
-        include: { photos: { orderBy: { position: "asc" }, take: 1, select: { url: true } } },
+        include: {
+          photos: { orderBy: { position: "asc" }, take: 1, select: { url: true } },
+          logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+        },
       },
       orders: {
         orderBy: { createdAt: "desc" },
         take: 20,
-        select: { id: true, number: true, kind: true, product: true, quantity: true, status: true, createdAt: true },
+        select: {
+          id: true,
+          number: true,
+          product: true,
+          quantity: true,
+          status: true,
+          createdAt: true,
+          logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+        },
       },
     },
   });
@@ -172,8 +183,8 @@ export default async function ClientSummaryPage(props: PageProps<"/klienci/[id]"
                     className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm hover:text-accent"
                   >
                     <span>
-                      {orderNumber(order.number)} · {formatDate(order.createdAt)} · {ORDER_KIND_LABEL[order.kind]}:{" "}
-                      {order.product} × {order.quantity} szt.
+                      {orderNumber(order.number)} · {formatDate(order.createdAt)} · {order.product} ×{" "}
+                      {order.quantity} szt. · {logosText(order.logos)}
                     </span>
                     <OrderStatusBadge status={order.status} />
                   </Link>

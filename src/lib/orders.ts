@@ -42,14 +42,29 @@ export const ORDER_MAX_PHOTOS = 10;
 /** Folder w magazynie plików na zdjęcia z zleceń. */
 export const ORDER_PHOTO_FOLDER = "zlecenia";
 
-/** Umiejscowienie jako jeden tekst, np. „Plecy, Przód lewy — logo 8 cm”. */
-export function placementText(placements: readonly string[], notes: string | null) {
-  const names = placements.map(
-    (value) => ORDER_PLACEMENT_LABEL[value as OrderPlacementValue] ?? value,
-  );
-  const parts = [names.join(", "), notes ?? ""].filter((part) => part !== "");
+/** Najwięcej logo na jednym asortymencie. */
+export const ORDER_MAX_LOGOS = 20;
 
-  return parts.length > 0 ? parts.join(" — ") : "—";
+/** Krótka nazwa rodzaju na liście logo. */
+export const ORDER_KIND_SHORT: Record<OrderKindValue, string> = { HAFT: "Haft", DTF: "DTF" };
+
+export type OrderLogoData = {
+  kind: OrderKindValue;
+  placement: OrderPlacementValue | null;
+  description: string | null;
+};
+
+/** Jedno logo jako tekst, np. „Haft: Przód lewy (logo 8 cm)”. */
+export function logoText(logo: OrderLogoData) {
+  const where = logo.placement ? ORDER_PLACEMENT_LABEL[logo.placement] : null;
+  const what = where && logo.description ? `${where} (${logo.description})` : (where ?? logo.description ?? "inne miejsce");
+
+  return `${ORDER_KIND_SHORT[logo.kind]}: ${what}`;
+}
+
+/** Wszystkie logo w jednej linii — do list. */
+export function logosText(logos: OrderLogoData[]) {
+  return logos.length > 0 ? logos.map(logoText).join(" · ") : "—";
 }
 
 export function orderNumber(number: number) {
@@ -61,16 +76,15 @@ export function templateItem(
   template: {
     id: string;
     name: string;
-    kind: OrderKindValue;
     product: string;
-    placements: readonly string[];
-    placementNotes: string | null;
     notes: string | null;
     photos: { url: string }[];
+    logos: OrderLogoData[];
   },
   href: string,
 ) {
-  const subtitle = `${ORDER_KIND_LABEL[template.kind]} · ${placementText(template.placements, template.placementNotes)}`;
+  const subtitle = logosText(template.logos);
+  const kinds = new Set(template.logos.map((logo) => logo.kind));
 
   return {
     id: template.id,
@@ -78,7 +92,13 @@ export function templateItem(
     href,
     photoUrl: template.photos[0]?.url ?? null,
     subtitle,
-    searchText: [template.name, template.product, subtitle, template.notes ?? ""].join(" "),
-    placeholder: template.kind === "DTF" ? "DTF" : "🧵",
+    searchText: [
+      template.name,
+      template.product,
+      subtitle,
+      ...template.logos.map((logo) => ORDER_KIND_LABEL[logo.kind]),
+      template.notes ?? "",
+    ].join(" "),
+    placeholder: kinds.size === 1 && kinds.has("DTF") ? "DTF" : "🧵",
   };
 }

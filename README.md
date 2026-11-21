@@ -20,15 +20,17 @@ Klient z bazy haftów może dostać własne konto i sam składać zlecenia.
 - Klient loguje się na tej samej stronie logowania i trafia od razu do
   **Moje zlecenia** (`/moje-zlecenia`). Nie ma dostępu do żadnej aplikacji
   pracowników — sprawdza to serwer (`lib/auth.ts`, konto z `clientId`).
-- Zlecenie: rodzaj (haft albo DTF), asortyment ze zdjęciami (do 10), umiejscowienie
-  (plecy, przód lewy, przód prawy, rękaw i/lub opis), ilość i uwagi. Klient widzi
+- Zlecenie: najpierw asortyment ze zdjęciami (do 10), potem dowolnie wiele logo —
+  każde z rodzajem (haft albo DTF), miejscem (plecy, przód lewy, przód prawy, rękaw
+  albo inne) i opisem; na końcu ilość i uwagi. Logo są w tabelach `OrderLogo`
+  i `OrderTemplateLogo`. Klient widzi
   tylko swoje zlecenia i ich etap; może wycofać zlecenie, dopóki jest „Nowe”.
 - Pracownicy bazy haftów mają zakładkę **Zlecenia**: lista z filtrem etapu,
   szczegóły ze zdjęciami i zmiana etapu (Nowe, W realizacji, Gotowe, Anulowane).
   Usunąć zlecenie może osoba zarządzająca haftami.
 - **Szablony zleceń**: na karcie klienta (sekcja „Szablony zleceń”) pracownik
-  przygotowuje gotowe zlecenia — asortyment ze zdjęciami, rodzaj, umiejscowienie
-  i opis. Klient widzi je jako kafelki „Zamów z szablonu” i podaje tylko ilość.
+  przygotowuje gotowe zlecenia — asortyment ze zdjęciami, logo (rodzaj i miejsce
+  każdego) i opis. Klient widzi je jako kafelki „Zamów z szablonu” i podaje tylko ilość.
   Nad szablonami jest wyszukiwarka (nazwa, asortyment, rodzaj, umiejscowienie,
   opis; bez polskich znaków też działa).
   Zlecenie kopiuje dane szablonu w chwili zamówienia (zmiana szablonu nie zmienia

@@ -2,11 +2,12 @@ import Image from "next/image";
 
 import { formatDate } from "@/lib/format";
 import {
-  ORDER_KIND_LABEL,
+  ORDER_KIND_SHORT,
+  ORDER_PLACEMENT_LABEL,
   ORDER_STATUS_CLASS,
   ORDER_STATUS_LABEL,
+  type OrderLogoData,
   type OrderStatusValue,
-  placementText,
 } from "@/lib/orders";
 
 export function OrderStatusBadge({ status }: { status: OrderStatusValue }) {
@@ -20,10 +21,8 @@ export function OrderStatusBadge({ status }: { status: OrderStatusValue }) {
 }
 
 export type OrderDetailsData = {
-  kind: "HAFT" | "DTF";
   product: string;
-  placements: string[];
-  placementNotes: string | null;
+  logos: OrderLogoData[];
   /** `null` w podglądzie szablonu — ilość poda klient. */
   quantity: number | null;
   notes: string | null;
@@ -33,9 +32,27 @@ export type OrderDetailsData = {
 
 export function OrderDetails({ order }: { order: OrderDetailsData }) {
   const rows: [string, React.ReactNode][] = [
-    ["Rodzaj", ORDER_KIND_LABEL[order.kind]],
     ["Asortyment", order.product],
-    ["Umiejscowienie", placementText(order.placements, order.placementNotes)],
+    [
+      order.logos.length === 1 ? "Logo" : `Logo (${order.logos.length})`,
+      <ol key="logo" className="space-y-1">
+        {order.logos.map((logo, index) => (
+          <li key={index} className="flex flex-wrap items-baseline gap-2">
+            <span
+              className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
+                logo.kind === "DTF" ? "bg-[#e0f2fe] text-[#075985]" : "bg-accent-soft text-accent"
+              }`}
+            >
+              {ORDER_KIND_SHORT[logo.kind]}
+            </span>
+            <span>
+              {logo.placement ? ORDER_PLACEMENT_LABEL[logo.placement] : "Inne miejsce"}
+              {logo.description ? <span className="font-normal text-muted"> — {logo.description}</span> : null}
+            </span>
+          </li>
+        ))}
+      </ol>,
+    ],
   ];
 
   if (order.quantity !== null) rows.push(["Ilość", `${order.quantity} szt.`]);

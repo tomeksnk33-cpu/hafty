@@ -19,6 +19,7 @@ export default async function OrderPage(props: PageProps<"/zlecenia/[id]">) {
     where: { id },
     include: {
       photos: { orderBy: { position: "asc" } },
+      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
       client: { select: { id: true, name: true, company: true, phone: true, email: true } },
       createdBy: { select: { name: true } },
       template: { select: { name: true } },

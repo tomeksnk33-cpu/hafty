@@ -18,6 +18,7 @@ export default async function EditTemplatePage(props: PageProps<"/klienci/[id]/s
     include: {
       client: { select: { id: true, name: true } },
       photos: { orderBy: { position: "asc" } },
+      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
       _count: { select: { orders: true } },
     },
   });
@@ -42,10 +43,8 @@ export default async function EditTemplatePage(props: PageProps<"/klienci/[id]/s
         submitLabel="Zapisz zmiany"
         defaults={{
           name: template.name,
-          kind: template.kind,
           product: template.product,
-          placements: template.placements,
-          placementNotes: template.placementNotes ?? "",
+          logos: template.logos,
           notes: template.notes ?? "",
           photos: template.photos.map(({ url, pathname, filename, sizeBytes }) => ({
             url,

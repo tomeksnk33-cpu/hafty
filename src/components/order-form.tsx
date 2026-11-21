@@ -9,9 +9,11 @@ import { FormError, SubmitButton } from "@/components/form-field";
 import {
   ORDER_KIND_LABEL,
   ORDER_KINDS,
+  ORDER_MAX_LOGOS,
   ORDER_MAX_PHOTOS,
   ORDER_PLACEMENT_LABEL,
   ORDER_PLACEMENTS,
+  type OrderPlacementValue,
 } from "@/lib/orders";
 import type { UploadedFile } from "@/lib/uploads";
 import { useFormSubmit } from "@/lib/use-form-submit";
@@ -28,10 +30,6 @@ function Errors({ errors, name }: { errors?: Record<string, string[]>; name: str
     </>
   );
 }
-
-/** Duży kafelek do zaznaczania — wygodny palcem na ekranie dotykowym i w telefonie. */
-const tileClass =
-  "flex min-h-16 cursor-pointer items-center justify-center rounded-xl border-2 border-line bg-surface px-4 py-3 text-center text-lg font-medium transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:text-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent/30";
 
 function OrderPhotos({
   value,
@@ -101,20 +99,156 @@ function OrderPhotos({
   );
 }
 
+type LogoKind = "HAFT" | "DTF";
+
+/** Logo w formularzu. Pusty rodzaj/miejsce = jeszcze niewybrane; „INNE" = miejsce tylko w opisie. */
+type LogoDraft = {
+  key: number;
+  kind: LogoKind | "";
+  placement: OrderPlacementValue | "INNE" | "";
+  description: string;
+};
+
+export type OrderLogoDefaults = {
+  kind: LogoKind;
+  placement: OrderPlacementValue | null;
+  description: string | null;
+};
+
 /** Pola zapisanego szablonu — do edycji. */
 export type OrderTemplateDefaults = {
   name: string;
-  kind: "HAFT" | "DTF";
   product: string;
-  placements: string[];
-  placementNotes: string;
+  logos: OrderLogoDefaults[];
   notes: string;
   photos: UploadedFile[];
 };
 
+let nextKey = 1;
+
+function emptyLogo(): LogoDraft {
+  return { key: nextKey++, kind: "", placement: "", description: "" };
+}
+
+function toDraft(logo: OrderLogoDefaults): LogoDraft {
+  return {
+    key: nextKey++,
+    kind: logo.kind,
+    placement: logo.placement ?? "INNE",
+    description: logo.description ?? "",
+  };
+}
+
+/** Postać wysyłana do serwera (walidacja w lib/validation.ts). */
+function serializeLogos(logos: LogoDraft[]) {
+  return JSON.stringify(
+    logos.map((logo) => ({
+      kind: logo.kind,
+      placement: logo.placement === "" || logo.placement === "INNE" ? null : logo.placement,
+      description: logo.description,
+    })),
+  );
+}
+
+const choiceClass = (active: boolean) =>
+  `flex min-h-14 items-center justify-center rounded-xl border-2 px-3 py-2 text-center text-base font-medium transition-colors sm:text-lg ${
+    active ? "border-accent bg-accent-soft text-accent" : "border-line bg-surface hover:bg-paper"
+  }`;
+
+function LogoCard({
+  logo,
+  index,
+  canRemove,
+  errors,
+  onChange,
+  onRemove,
+}: {
+  logo: LogoDraft;
+  index: number;
+  canRemove: boolean;
+  errors?: Record<string, string[]>;
+  onChange: (patch: Partial<LogoDraft>) => void;
+  onRemove: () => void;
+}) {
+  const descriptionId = `logo-${logo.key}-opis`;
+  const messages = [
+    ...(errors?.[`logos.${index}.kind`] ?? []),
+    ...(errors?.[`logos.${index}.placement`] ?? []),
+    ...(errors?.[`logos.${index}`] ?? []),
+    ...(errors?.[`logos.${index}.description`] ?? []),
+  ];
+
+  return (
+    <li className="rounded-xl border border-line bg-paper/60 p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="text-lg font-semibold">Logo {index + 1}</h3>
+        {canRemove ? (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="rounded-lg px-3 py-2 text-sm font-medium text-accent hover:bg-accent-soft"
+          >
+            ✕ Usuń logo
+          </button>
+        ) : null}
+      </div>
+
+      <p className="mb-2 text-sm font-medium text-muted">Rodzaj</p>
+      <div className="grid grid-cols-2 gap-3" role="group" aria-label={`Rodzaj logo ${index + 1}`}>
+        {ORDER_KINDS.map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            aria-pressed={logo.kind === kind}
+            onClick={() => onChange({ kind })}
+            className={choiceClass(logo.kind === kind)}
+          >
+            {ORDER_KIND_LABEL[kind]}
+          </button>
+        ))}
+      </div>
+
+      <p className="mt-4 mb-2 text-sm font-medium text-muted">Miejsce</p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5" role="group" aria-label={`Miejsce logo ${index + 1}`}>
+        {[...ORDER_PLACEMENTS, "INNE" as const].map((placement) => (
+          <button
+            key={placement}
+            type="button"
+            aria-pressed={logo.placement === placement}
+            onClick={() => onChange({ placement })}
+            className={choiceClass(logo.placement === placement)}
+          >
+            {placement === "INNE" ? "Inne (opis)" : ORDER_PLACEMENT_LABEL[placement]}
+          </button>
+        ))}
+      </div>
+
+      <label className="field-label mt-4" htmlFor={descriptionId}>
+        Opis logo {logo.placement === "INNE" ? "(gdzie dokładnie?)" : "(opcjonalnie)"}
+      </label>
+      <input
+        id={descriptionId}
+        value={logo.description}
+        onChange={(event) => onChange({ description: event.target.value })}
+        maxLength={1000}
+        className="input text-base"
+        placeholder="np. logo firmy 8 cm, napis „Przedszkole nr 4” pod kołnierzem"
+      />
+
+      {messages.map((message) => (
+        <p key={message} className="field-error text-sm">
+          {message}
+        </p>
+      ))}
+    </li>
+  );
+}
+
 /**
  * Formularz zlecenia (klient) albo szablonu zlecenia (pracownik, na karcie
- * klienta). Szablon ma nazwę i nie ma ilości — ilość klient poda przy zamówieniu.
+ * klienta): najpierw asortyment, potem dowolnie wiele logo — każde z rodzajem
+ * (haft/DTF), miejscem i opisem. Szablon ma nazwę i nie ma ilości — ilość
+ * klient poda przy zamówieniu.
  */
 export function OrderForm({
   action,
@@ -131,7 +265,14 @@ export function OrderForm({
 }) {
   const { state, onSubmit, pending } = useFormSubmit(action);
   const [photos, setPhotos] = useState<UploadedFile[]>(defaults?.photos ?? []);
+  const [logos, setLogos] = useState<LogoDraft[]>(() =>
+    defaults && defaults.logos.length > 0 ? defaults.logos.map(toDraft) : [emptyLogo()],
+  );
   const errors = state?.errors;
+
+  function updateLogo(key: number, patch: Partial<LogoDraft>) {
+    setLogos((current) => current.map((logo) => (logo.key === key ? { ...logo, ...patch } : logo)));
+  }
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
@@ -157,27 +298,7 @@ export function OrderForm({
       ) : null}
 
       <section className="card p-5 sm:p-6">
-        <h2 className="mb-3 text-lg font-semibold">1. Rodzaj</h2>
-        <div className="grid grid-cols-2 gap-3">
-          {ORDER_KINDS.map((kind) => (
-            <label key={kind} className={tileClass}>
-              <input
-                type="radio"
-                name="kind"
-                value={kind}
-                required
-                defaultChecked={defaults?.kind === kind}
-                className="sr-only"
-              />
-              {ORDER_KIND_LABEL[kind]}
-            </label>
-          ))}
-        </div>
-        <Errors errors={errors} name="kind" />
-      </section>
-
-      <section className="card p-5 sm:p-6">
-        <h2 className="mb-3 text-lg font-semibold">2. Asortyment</h2>
+        <h2 className="mb-3 text-lg font-semibold">1. Asortyment</h2>
         <label className="field-label" htmlFor="product">
           Co mamy oznakować?
         </label>
@@ -199,43 +320,42 @@ export function OrderForm({
       </section>
 
       <section className="card p-5 sm:p-6">
-        <h2 className="mb-1 text-lg font-semibold">3. Umiejscowienie</h2>
-        <p className="mb-3 text-sm text-muted">Zaznacz jedno lub kilka miejsc albo opisz je poniżej.</p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {ORDER_PLACEMENTS.map((placement) => (
-            <label key={placement} className={tileClass}>
-              <input
-                type="checkbox"
-                name="placements"
-                value={placement}
-                defaultChecked={defaults?.placements.includes(placement)}
-                className="sr-only"
-              />
-              {ORDER_PLACEMENT_LABEL[placement]}
-            </label>
-          ))}
-        </div>
-        <Errors errors={errors} name="placements" />
+        <h2 className="mb-1 text-lg font-semibold">2. Logo na asortymencie</h2>
+        <p className="mb-4 text-sm text-muted">
+          Dla każdego logo wybierz rodzaj (haft albo DTF) i miejsce. Kolejne logo dodasz przyciskiem poniżej.
+        </p>
 
-        <label className="field-label mt-4" htmlFor="placementNotes">
-          Opis umiejscowienia
-        </label>
-        <textarea
-          id="placementNotes"
-          name="placementNotes"
-          rows={2}
-          maxLength={1000}
-          defaultValue={defaults?.placementNotes}
-          className="input text-base"
-          placeholder="np. logo 8 cm na lewej piersi, napis na plecach pod kołnierzem"
-        />
-        <Errors errors={errors} name="placementNotes" />
+        <ol className="space-y-4">
+          {logos.map((logo, index) => (
+            <LogoCard
+              key={logo.key}
+              logo={logo}
+              index={index}
+              canRemove={logos.length > 1}
+              errors={errors}
+              onChange={(patch) => updateLogo(logo.key, patch)}
+              onRemove={() => setLogos((current) => current.filter((item) => item.key !== logo.key))}
+            />
+          ))}
+        </ol>
+        <input type="hidden" name="logos" value={serializeLogos(logos)} />
+        <Errors errors={errors} name="logos" />
+
+        {logos.length < ORDER_MAX_LOGOS ? (
+          <button
+            type="button"
+            onClick={() => setLogos((current) => [...current, emptyLogo()])}
+            className="mt-4 w-full rounded-xl border-2 border-dashed border-line px-4 py-4 text-lg font-medium text-accent hover:border-accent/50 hover:bg-accent-soft"
+          >
+            + Dodaj kolejne logo
+          </button>
+        ) : null}
       </section>
 
       <section className="card p-5 sm:p-6">
         {template ? null : (
           <>
-            <h2 className="mb-3 text-lg font-semibold">4. Ilość</h2>
+            <h2 className="mb-3 text-lg font-semibold">3. Ilość</h2>
             <div className="mb-4 flex items-center gap-3">
               <input
                 id="quantity"
@@ -253,7 +373,7 @@ export function OrderForm({
         )}
 
         <label className={template ? "mb-3 block text-lg font-semibold" : "field-label"} htmlFor="notes">
-          {template ? "4. Opis" : "Uwagi (opcjonalnie)"}
+          {template ? "3. Opis" : "Uwagi (opcjonalnie)"}
         </label>
         <textarea
           id="notes"
@@ -262,7 +382,7 @@ export function OrderForm({
           maxLength={5000}
           defaultValue={defaults?.notes}
           className="input text-base"
-          placeholder={template ? "np. kolory nici, wielkość logo, plik z projektem u nas" : "np. termin, kolory nici, rozmiary"}
+          placeholder={template ? "np. kolory nici, plik z projektem u nas" : "np. termin, kolory nici, rozmiary"}
         />
         <Errors errors={errors} name="notes" />
       </section>

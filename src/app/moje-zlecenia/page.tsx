@@ -4,7 +4,7 @@ import { OrderStatusBadge } from "@/components/order-details";
 import { requireClient } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
-import { ORDER_KIND_LABEL, orderNumber, placementText } from "@/lib/orders";
+import { logosText, orderNumber } from "@/lib/orders";
 
 import { TemplateTiles } from "./template-tiles";
 
@@ -20,10 +20,8 @@ export default async function MyOrdersPage() {
     select: {
       id: true,
       number: true,
-      kind: true,
       product: true,
-      placements: true,
-      placementNotes: true,
+      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
       quantity: true,
       status: true,
       createdAt: true,
@@ -62,13 +60,13 @@ export default async function MyOrdersPage() {
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-muted">
-                    {orderNumber(order.number)} · {formatDate(order.createdAt)} · {ORDER_KIND_LABEL[order.kind]}
+                    {orderNumber(order.number)} · {formatDate(order.createdAt)}
                   </p>
                   <p className="truncate text-lg font-semibold">
                     {order.product} <span className="font-normal text-muted">× {order.quantity} szt.</span>
                   </p>
                   <p className="truncate text-sm text-muted">
-                    {placementText(order.placements, order.placementNotes)}
+                    {logosText(order.logos)}
                     {order._count.photos > 0 ? ` · 📷 ${order._count.photos}` : ""}
                   </p>
                 </div>

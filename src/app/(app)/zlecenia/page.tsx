@@ -6,12 +6,11 @@ import { requireEmbroideryUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import {
-  ORDER_KIND_LABEL,
   ORDER_STATUS_LABEL,
   ORDER_STATUSES,
   type OrderStatusValue,
   orderNumber,
-  placementText,
+  logosText,
 } from "@/lib/orders";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +33,7 @@ export default async function OrdersPage(props: PageProps<"/zlecenia">) {
       include: {
         client: { select: { id: true, name: true, company: true } },
         _count: { select: { photos: true } },
+        logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
       },
     }),
     prisma.embroideryOrder.groupBy({ by: ["status"], _count: { _all: true } }),
@@ -90,11 +90,11 @@ export default async function OrdersPage(props: PageProps<"/zlecenia">) {
                     {order.client.company ? ` (${order.client.company})` : ""}
                   </p>
                   <p className="truncate text-lg font-semibold">
-                    {ORDER_KIND_LABEL[order.kind]}: {order.product}{" "}
+                    {order.product}{" "}
                     <span className="font-normal text-muted">× {order.quantity} szt.</span>
                   </p>
                   <p className="truncate text-sm text-muted">
-                    {placementText(order.placements, order.placementNotes)}
+                    {logosText(order.logos)}
                     {order._count.photos > 0 ? ` · 📷 ${order._count.photos}` : ""}
                   </p>
                 </div>

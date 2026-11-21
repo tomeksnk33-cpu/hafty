@@ -112,31 +112,28 @@ enum OrderStatus {
   ANULOWANE
 }
 
-/// Zlecenie złożone przez klienta haftów (albo przez pracownika w jego imieniu).
+/// Zlecenie złożone przez klienta haftów: jeden asortyment, na nim jedno lub kilka logo (OrderLogo). (albo przez pracownika w jego imieniu).
 model EmbroideryOrder {
-  id             String           @id @default(cuid())
+  id          String      @id @default(cuid())
   /// Kolejny numer zlecenia pokazywany klientowi i pracownikom.
-  number         Int              @unique @default(autoincrement())
-  clientId       String
-  createdById    String?
+  number      Int         @unique @default(autoincrement())
+  clientId    String
+  createdById String?
   /// Szablon, z którego klient złożył zlecenie (podaje wtedy tylko ilość).
-  templateId     String?
-  kind           OrderKind
+  templateId  String?
   /// Asortyment, np. „koszulka polo granatowa".
-  product        String
-  placements     OrderPlacement[]
-  /// Opis umiejscowienia (dowolne miejsce lub szczegóły).
-  placementNotes String?
-  quantity       Int
-  notes          String?
-  status         OrderStatus      @default(NOWE)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  product     String
+  quantity    Int
+  notes       String?
+  status      OrderStatus @default(NOWE)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   client    Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   createdBy User?          @relation(fields: [createdById], references: [id], onDelete: SetNull)
   template  OrderTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   photos    OrderPhoto[]
+  logos     OrderLogo[]
 
   @@index([clientId, createdAt])
   @@index([status, createdAt])
@@ -595,20 +592,18 @@ model AttendanceShift {
  * umiejscowienie i opis. Klient wybiera go i podaje tylko ilość.
  */
 model OrderTemplate {
-  id             String           @id @default(cuid())
-  clientId       String
+  id        String   @id @default(cuid())
+  clientId  String
   /// Nazwa na kafelku, np. „Polo granat — logo przód lewy".
-  name           String
-  kind           OrderKind
-  product        String
-  placements     OrderPlacement[]
-  placementNotes String?
-  notes          String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  name      String
+  product   String
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   client Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
   photos OrderTemplatePhoto[]
+  logos  OrderTemplateLogo[]
   orders EmbroideryOrder[]
 
   @@index([clientId, name])
@@ -628,4 +623,33 @@ model OrderTemplatePhoto {
   template OrderTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@index([templateId])
+}
+
+/// Logo na asortymencie zlecenia: rodzaj (haft/DTF), miejsce i opis.
+model OrderLogo {
+  id          String          @id @default(cuid())
+  orderId     String
+  position    Int             @default(0)
+  kind        OrderKind
+  /// NULL = inne miejsce, opisane w `description`.
+  placement   OrderPlacement?
+  description String?
+
+  order EmbroideryOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, position])
+}
+
+/// Logo w szablonie zlecenia — kopiowane do zlecenia przy zamówieniu.
+model OrderTemplateLogo {
+  id          String          @id @default(cuid())
+  templateId  String
+  position    Int             @default(0)
+  kind        OrderKind
+  placement   OrderPlacement?
+  description String?
+
+  template OrderTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId, position])
 }
