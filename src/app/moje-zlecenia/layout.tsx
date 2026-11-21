@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireClient } from "@/lib/auth";
 
 import { logOut } from "../login/actions";
+import { PortalNav } from "./portal-nav";
 
 /** Strefa klienta haftów: tylko jego zlecenia, bez nawigacji pracowników. */
 export default async function ClientOrdersLayout({ children }: { children: React.ReactNode }) {
@@ -17,6 +18,10 @@ export default async function ClientOrdersLayout({ children }: { children: React
             <img src="/brand/logo.png" alt="GTM Bukowski" className="h-8 w-auto" />
             <span className="text-lg font-semibold tracking-tight">Moje zlecenia</span>
           </Link>
+
+          <div className="order-3 w-full sm:order-none sm:w-auto">
+            <PortalNav />
+          </div>
 
           <div className="ml-auto flex items-center gap-4">
             <Link href="/konto" title="Zmiana hasła" className="max-w-48 truncate text-sm text-muted hover:text-ink">

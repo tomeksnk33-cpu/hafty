@@ -4,14 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireManager } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { logoRows, readTemplateForm, removeUnusedOrderFiles } from "@/lib/orders-server";
-import { toFormState, type FormState } from "@/lib/validation";
+import { removeTemplate, saveTemplate } from "@/lib/order-templates";
+import type { FormState } from "@/lib/validation";
 
 function refresh(clientId: string) {
   revalidatePath(`/klienci/${clientId}`);
-  revalidatePath("/moje-zlecenia");
-  revalidatePath("/moje-zlecenia/nowe");
+  revalidatePath("/moje-zlecenia", "layout");
 }
 
 /** Nowy szablon zlecenia dla klienta — przygotowuje go pracownik na karcie klienta. */
@@ -21,23 +19,9 @@ export async function createTemplate(
   formData: FormData,
 ): Promise<FormState> {
   await requireManager();
-  const { parsed, photos } = readTemplateForm(formData);
 
-  if (!parsed.success) return toFormState(parsed.error);
-
-  const client = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } });
-  if (!client) return { message: "Ten klient już nie istnieje." };
-
-  const { logos, ...fields } = parsed.data;
-
-  await prisma.orderTemplate.create({
-    data: {
-      ...fields,
-      clientId,
-      logos: { create: logoRows(logos) },
-      photos: { create: photos.map((photo, position) => ({ ...photo, position })) },
-    },
-  });
+  const problem = await saveTemplate(clientId, null, formData);
+  if (problem) return problem;
 
   refresh(clientId);
   redirect(`/klienci/${clientId}#szablony`);
@@ -50,50 +34,18 @@ export async function updateTemplate(
   formData: FormData,
 ): Promise<FormState> {
   await requireManager();
-  const { parsed, photos } = readTemplateForm(formData);
 
-  if (!parsed.success) return toFormState(parsed.error);
-
-  const template = await prisma.orderTemplate.findFirst({
-    where: { id: templateId, clientId },
-    select: { photos: { select: { url: true, pathname: true } } },
-  });
-
-  if (!template) return { message: "Ten szablon już nie istnieje." };
-
-  const { logos, ...fields } = parsed.data;
-
-  await prisma.$transaction([
-    prisma.orderTemplatePhoto.deleteMany({ where: { templateId } }),
-    prisma.orderTemplateLogo.deleteMany({ where: { templateId } }),
-    prisma.orderTemplate.update({
-      where: { id: templateId },
-      data: {
-        ...fields,
-        logos: { create: logoRows(logos) },
-        photos: { create: photos.map((photo, position) => ({ ...photo, position })) },
-      },
-    }),
-  ]);
-
-  // Zdjęcia usunięte z szablonu — chyba że używa ich któreś zlecenie.
-  await removeUnusedOrderFiles(template.photos);
+  const problem = await saveTemplate(clientId, templateId, formData);
+  if (problem) return problem;
 
   refresh(clientId);
   redirect(`/klienci/${clientId}#szablony`);
 }
 
-/** Usuwa szablon. Złożone z niego zlecenia zostają razem ze zdjęciami. */
 export async function deleteTemplate(clientId: string, templateId: string) {
   await requireManager();
 
-  const photos = await prisma.orderTemplatePhoto.findMany({
-    where: { templateId, template: { clientId } },
-    select: { url: true, pathname: true },
-  });
-
-  await prisma.orderTemplate.deleteMany({ where: { id: templateId, clientId } });
-  await removeUnusedOrderFiles(photos);
+  await removeTemplate(clientId, templateId);
 
   refresh(clientId);
   redirect(`/klienci/${clientId}#szablony`);
