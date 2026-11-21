@@ -24,9 +24,10 @@ export type OrderDetailsData = {
   product: string;
   placements: string[];
   placementNotes: string | null;
-  quantity: number;
+  /** `null` w podglądzie szablonu — ilość poda klient. */
+  quantity: number | null;
   notes: string | null;
-  createdAt: Date;
+  createdAt: Date | null;
   photos: { id: string; url: string; filename: string }[];
 };
 
@@ -35,11 +36,11 @@ export function OrderDetails({ order }: { order: OrderDetailsData }) {
     ["Rodzaj", ORDER_KIND_LABEL[order.kind]],
     ["Asortyment", order.product],
     ["Umiejscowienie", placementText(order.placements, order.placementNotes)],
-    ["Ilość", `${order.quantity} szt.`],
-    ["Złożone", formatDate(order.createdAt)],
   ];
 
-  if (order.notes) rows.push(["Uwagi", <span key="uwagi" className="whitespace-pre-wrap">{order.notes}</span>]);
+  if (order.quantity !== null) rows.push(["Ilość", `${order.quantity} szt.`]);
+  if (order.createdAt) rows.push(["Złożone", formatDate(order.createdAt)]);
+  if (order.notes) rows.push([order.createdAt ? "Uwagi" : "Opis", <span key="uwagi" className="whitespace-pre-wrap">{order.notes}</span>]);
 
   return (
     <>

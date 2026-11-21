@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { requireEmbroideryUser, requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ORDER_STATUSES, type OrderStatusValue } from "@/lib/orders";
-import { removeFiles } from "@/lib/storage";
+import { removeUnusedOrderFiles } from "@/lib/orders-server";
 
 function refresh(id: string) {
   revalidatePath("/zlecenia");
@@ -36,7 +36,7 @@ export async function deleteOrder(id: string) {
   });
 
   await prisma.embroideryOrder.deleteMany({ where: { id } });
-  await removeFiles(photos);
+  await removeUnusedOrderFiles(photos);
 
   refresh(id);
   redirect("/zlecenia");

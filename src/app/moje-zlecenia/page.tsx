@@ -6,6 +6,8 @@ import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { ORDER_KIND_LABEL, orderNumber, placementText } from "@/lib/orders";
 
+import { TemplateTiles } from "./template-tiles";
+
 export const dynamic = "force-dynamic";
 
 export default async function MyOrdersPage() {
@@ -40,6 +42,10 @@ export default async function MyOrdersPage() {
           + Nowe zlecenie
         </Link>
       </div>
+
+      <TemplateTiles clientId={user.clientId} />
+
+      {orders.length > 0 ? <h2 className="mb-3 text-lg font-semibold">Złożone zlecenia</h2> : null}
 
       {orders.length === 0 ? (
         <div className="card px-6 py-12 text-center">

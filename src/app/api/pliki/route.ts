@@ -56,7 +56,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    const stored = await saveFile(isClient ? ORDER_PHOTO_FOLDER : kind, file);
+    // Zdjęcia zleceń i szablonów klientów trafiają do osobnego folderu — tylko
+    // stamtąd formularze zleceń przyjmują zdjęcia (lib/orders-server.ts).
+    const forOrders = isClient || (kind === "zdjecia" && formData.get("cel") === "zlecenia");
+    const stored = await saveFile(forOrders ? ORDER_PHOTO_FOLDER : kind, file);
 
     return NextResponse.json({
       url: stored.url,

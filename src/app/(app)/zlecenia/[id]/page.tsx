@@ -21,6 +21,7 @@ export default async function OrderPage(props: PageProps<"/zlecenia/[id]">) {
       photos: { orderBy: { position: "asc" } },
       client: { select: { id: true, name: true, company: true, phone: true, email: true } },
       createdBy: { select: { name: true } },
+      template: { select: { name: true } },
     },
   });
 
@@ -47,6 +48,7 @@ export default async function OrderPage(props: PageProps<"/zlecenia/[id]">) {
             )}
             {contact.length > 0 ? ` · ${contact.join(" · ")}` : ""}
             {order.createdBy ? ` · złożył(a): ${order.createdBy.name}` : ""}
+            {order.template ? ` · z szablonu „${order.template.name}”` : ""}
           </p>
         </div>
         <OrderStatusBadge status={order.status} />

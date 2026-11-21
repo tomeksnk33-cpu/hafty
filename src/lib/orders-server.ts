@@ -11,7 +11,8 @@ import {
   orderNumber,
   placementText,
 } from "@/lib/orders";
-import { fieldValue, orderSchema } from "@/lib/validation";
+import { removeFiles, type StoredFile } from "@/lib/storage";
+import { fieldValue, orderSchema, orderTemplateSchema } from "@/lib/validation";
 
 const uploadedPhotoSchema = z.object({
   url: z.string().min(1).max(2000),
@@ -55,6 +56,45 @@ function readPhotos(formData: FormData) {
   } catch {
     return [];
   }
+}
+
+export function readTemplateForm(formData: FormData) {
+  return {
+    parsed: orderTemplateSchema.safeParse({
+      name: fieldValue(formData, "name"),
+      kind: fieldValue(formData, "kind"),
+      product: fieldValue(formData, "product"),
+      placements: formData.getAll("placements").filter((v) => typeof v === "string"),
+      placementNotes: fieldValue(formData, "placementNotes"),
+      notes: fieldValue(formData, "notes"),
+    }),
+    photos: readPhotos(formData),
+  };
+}
+
+/**
+ * Zlecenia złożone z szablonu używają tych samych plików co szablon. Plik
+ * kasujemy dopiero, gdy nie wskazuje na niego już żadne zlecenie ani szablon.
+ * Wołać po usunięciu rekordów z bazy.
+ */
+export async function removeUnusedOrderFiles(files: StoredFile[]) {
+  if (files.length === 0) return;
+
+  const pathnames = [...new Set(files.map((file) => file.pathname))];
+  const [inOrders, inTemplates] = await Promise.all([
+    prisma.orderPhoto.findMany({ where: { pathname: { in: pathnames } }, select: { pathname: true } }),
+    prisma.orderTemplatePhoto.findMany({ where: { pathname: { in: pathnames } }, select: { pathname: true } }),
+  ]);
+  const used = new Set([...inOrders, ...inTemplates].map((row) => row.pathname));
+  const seen = new Set<string>();
+
+  await removeFiles(
+    files.filter((file) => {
+      if (used.has(file.pathname) || seen.has(file.pathname)) return false;
+      seen.add(file.pathname);
+      return true;
+    }),
+  );
 }
 
 export function readOrderForm(formData: FormData) {
