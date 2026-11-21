@@ -1,20 +1,34 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ConfirmAction } from "@/components/confirm-action";
 import { DeleteButton } from "@/components/delete-button";
+import { OrderStatusBadge } from "@/components/order-details";
 import { PageHeader, Stat } from "@/components/page-header";
 import { RealizationCard, realizationCardSelect } from "@/components/realization-card";
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate, formatMoney, plural } from "@/lib/format";
+import { ORDER_KIND_LABEL, orderNumber } from "@/lib/orders";
 
-import { deleteClient } from "../actions";
+import { deleteClient, saveClientAccount, setClientAccountActive } from "../actions";
+import { ClientAccountForm } from "./client-account";
 
 export default async function ClientSummaryPage(props: PageProps<"/klienci/[id]">) {
   const user = await requireManager();
   const { id } = await props.params;
 
-  const client = await prisma.client.findUnique({ where: { id } });
+  const client = await prisma.client.findUnique({
+    where: { id },
+    include: {
+      account: { select: { login: true, active: true } },
+      orders: {
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: { id: true, number: true, kind: true, product: true, quantity: true, status: true, createdAt: true },
+      },
+    },
+  });
 
   if (!client) notFound();
 
@@ -102,6 +116,69 @@ export default async function ClientSummaryPage(props: PageProps<"/klienci/[id]"
         </div>
       ) : null}
 
+      <section className="card mt-6 p-5">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Konto do składania zleceń</h2>
+            <p className="mt-1 text-sm text-muted">
+              {client.account
+                ? client.account.active
+                  ? `Klient loguje się loginem „${client.account.login}” i widzi tylko swoje zlecenia.`
+                  : `Konto „${client.account.login}” jest zablokowane — klient nie może się zalogować.`
+                : "Klient nie ma jeszcze konta. Załóż je, żeby mógł sam składać zlecenia (haft lub DTF) ze zdjęciem asortymentu."}
+            </p>
+          </div>
+          {client.account ? (
+            client.account.active ? (
+              <ConfirmAction
+                action={setClientAccountActive.bind(null, client.id, false)}
+                label="Zablokuj konto"
+                title="Zablokować konto klienta?"
+                text="Klient nie zaloguje się, dopóki konto nie zostanie odblokowane. Zlecenia zostają."
+                confirmLabel="Tak, zablokuj"
+                buttonClassName="btn-danger"
+                danger
+              />
+            ) : (
+              <ConfirmAction
+                action={setClientAccountActive.bind(null, client.id, true)}
+                label="Odblokuj konto"
+                title="Odblokować konto klienta?"
+                confirmLabel="Tak, odblokuj"
+              />
+            )
+          ) : null}
+        </div>
+
+        <ClientAccountForm
+          action={saveClientAccount.bind(null, client.id)}
+          login={client.account?.login ?? ""}
+          hasAccount={client.account !== null}
+        />
+
+        {client.orders.length > 0 ? (
+          <div className="mt-6 border-t border-line pt-4">
+            <h3 className="mb-2 text-sm font-medium">Zlecenia klienta</h3>
+            <ul className="divide-y divide-line">
+              {client.orders.map((order) => (
+                <li key={order.id}>
+                  <Link
+                    href={`/zlecenia/${order.id}`}
+                    className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm hover:text-accent"
+                  >
+                    <span>
+                      {orderNumber(order.number)} · {formatDate(order.createdAt)} · {ORDER_KIND_LABEL[order.kind]}:{" "}
+                      {order.product} × {order.quantity} szt.
+                    </span>
+                    <OrderStatusBadge status={order.status} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </section>
+
       {topThreads.length > 0 ? (
         <section className="mt-8">
           <h2 className="mb-3 text-lg font-semibold">Najczęściej używane nici</h2>
@@ -165,7 +242,7 @@ export default async function ClientSummaryPage(props: PageProps<"/klienci/[id]"
         <DeleteButton
           action={deleteClient.bind(null, client.id)}
           label="Usuń klienta"
-          confirmText={`Usunąć klienta „${client.name}”? Jego realizacje zostaną w bazie, ale stracą przypisanie do klienta.`}
+          confirmText={`Usunąć klienta „${client.name}”? Jego realizacje zostaną w bazie, ale stracą przypisanie do klienta. Konto klienta i jego zlecenia zostaną usunięte.`}
         />
         <p className="mt-2 text-xs text-muted">
           Realizacje nie są usuwane razem z klientem — zostają w historii bez przypisania.

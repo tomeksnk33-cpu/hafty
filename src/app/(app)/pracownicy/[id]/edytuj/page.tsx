@@ -11,8 +11,8 @@ export default async function EditEmployeePage(props: PageProps<"/pracownicy/[id
   const admin = await requireAdmin();
   const { id } = await props.params;
 
-  const user = await prisma.user.findUnique({
-    where: { id },
+  const user = await prisma.user.findFirst({
+    where: { id, clientId: null },
     select: {
       id: true,
       name: true,

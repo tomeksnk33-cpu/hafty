@@ -45,7 +45,7 @@ export default async function SettlementsPage(props: PageProps<"/rozliczenia">) 
   // Wszyscy aktywni (żeby widać było, kto nic nie wpisał) oraz osoby wyłączone,
   // które mają wpisy w tym miesiącu.
   const users = await prisma.user.findMany({
-    where: { OR: [{ active: true }, { id: { in: [...rows.keys()] } }] },
+    where: { clientId: null, OR: [{ active: true }, { id: { in: [...rows.keys()] } }] },
     orderBy: { name: "asc" },
     select: { id: true, name: true, login: true, active: true },
   });

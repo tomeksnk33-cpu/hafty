@@ -43,6 +43,9 @@ const apps = [
 export default async function AppChooserPage() {
   const user = await requireUser();
 
+  // Klient haftów ma tylko swoje zlecenia.
+  if (user.clientId) redirect("/moje-zlecenia");
+
   const access: Record<(typeof apps)[number]["href"], boolean> = {
     "/pulpit": user.canUseEmbroidery,
     "/pralnia": user.canUseLaundry,

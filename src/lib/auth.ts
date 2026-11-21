@@ -23,6 +23,11 @@ export type SessionUser = {
   name: string;
   role: Role;
   isAdmin: boolean;
+  /**
+   * Konto klienta haftów (id klienta z bazy haftów). Klient widzi tylko swoje
+   * zlecenia pod /moje-zlecenia — wszystkie uprawnienia pracownika ma wyłączone.
+   */
+  clientId: string | null;
   /** Dostęp do bazy haftów. */
   canUseEmbroidery: boolean;
   /** Dostęp do trasy pralni. */
@@ -55,7 +60,30 @@ function toSessionUser(user: {
   isLaundryDriver: boolean;
   canUseTimeclock: boolean;
   canUseAttendance: boolean;
+  clientId: string | null;
 }): SessionUser {
+  if (user.clientId) {
+    // Konto klienta nigdy nie dostaje uprawnień pracownika — niezależnie od
+    // tego, co zostało w kolumnach z domyślnymi wartościami.
+    return {
+      id: user.id,
+      login: user.login,
+      name: user.name,
+      role: Role.EMPLOYEE,
+      isAdmin: false,
+      clientId: user.clientId,
+      canUseEmbroidery: false,
+      canUseLaundry: false,
+      canManageLaundry: false,
+      canDriveLaundry: false,
+      canStockLaundry: false,
+      canUseTimeclock: false,
+      canUseAttendance: false,
+      canManage: false,
+      canSeeMoney: false,
+    };
+  }
+
   const isAdmin = user.role === Role.ADMIN;
   const canUseEmbroidery = isAdmin || user.canUseEmbroidery;
   const canUseLaundry = isAdmin || user.canUseLaundry;
@@ -66,6 +94,7 @@ function toSessionUser(user: {
     name: user.name,
     role: user.role,
     isAdmin,
+    clientId: null,
     canUseEmbroidery,
     canUseLaundry,
     canManageLaundry: isAdmin || (canUseLaundry && user.isLaundryManager),
@@ -121,7 +150,7 @@ async function recoverAdmin(login: string, password: string) {
       role: Role.ADMIN,
       canManageRealizations: true,
     },
-    update: { passwordHash: stored, role: Role.ADMIN, active: true },
+    update: { passwordHash: stored, role: Role.ADMIN, active: true, clientId: null },
     select: { id: true },
   });
 
@@ -190,6 +219,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
       isLaundryDriver: true,
       canUseTimeclock: true,
       canUseAttendance: true,
+      clientId: true,
       active: true,
     },
   });
@@ -209,6 +239,15 @@ export async function requireUser() {
   if (!user) redirect("/login");
 
   return user;
+}
+
+/** Wymaga konta klienta haftów. Pracownik trafia do ekranu wyboru aplikacji. */
+export async function requireClient() {
+  const user = await requireUser();
+
+  if (!user.clientId) redirect("/");
+
+  return { ...user, clientId: user.clientId };
 }
 
 /** Wymaga dostępu do bazy haftów. Bez niego — powrót do ekranu wyboru aplikacji. */

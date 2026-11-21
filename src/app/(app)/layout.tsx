@@ -12,6 +12,7 @@ function navigationFor(user: SessionUser): NavItem[] {
   const items: NavItem[] = [
     { href: "/pulpit", label: "Pulpit" },
     { href: "/realizacje", label: "Realizacje" },
+    { href: "/zlecenia", label: "Zlecenia" },
     { href: "/dziennik", label: "Dziennik" },
   ];
 
@@ -42,14 +43,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3">
           <div className="flex items-baseline gap-3">
             <Link
-              href={user.canUseEmbroidery ? "/pulpit" : "/"}
+              href={user.canUseEmbroidery ? "/pulpit" : user.clientId ? "/moje-zlecenia" : "/"}
               className="text-lg font-semibold tracking-tight"
             >
-              {user.canUseEmbroidery ? "Baza haftów" : "Moje konto"}
+              {user.canUseEmbroidery ? "Baza haftów" : user.clientId ? "Moje zlecenia" : "Moje konto"}
             </Link>
-            <Link href="/" title="Wybór aplikacji" className="text-sm text-muted hover:text-ink">
-              Zmień aplikację
-            </Link>
+            {user.clientId ? null : (
+              <Link href="/" title="Wybór aplikacji" className="text-sm text-muted hover:text-ink">
+                Zmień aplikację
+              </Link>
+            )}
           </div>
 
           <div className="order-3 w-full sm:order-none sm:w-auto">
