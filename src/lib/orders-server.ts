@@ -2,14 +2,16 @@ import "server-only";
 
 import { z } from "zod";
 
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { mailConfigured, sendMail } from "@/lib/mail";
 import {
+  LOGO_QUERY,
   logoText,
   ORDER_MAX_PHOTOS,
   ORDER_PHOTO_FOLDER,
   orderNumber,
-  type OrderPlacementValue,
+  type OrderLogoData,
 } from "@/lib/orders";
 import { removeFiles, type StoredFile } from "@/lib/storage";
 import { fieldValue, orderSchema, orderTemplateSchema } from "@/lib/validation";
@@ -58,18 +60,46 @@ function readPhotos(formData: FormData) {
   }
 }
 
-/** Lista logo przychodzi jako JSON w ukrytym polu; zły JSON = brak logo (błąd walidacji). */
+/**
+ * Lista logo przychodzi jako JSON w ukrytym polu; zły JSON = brak logo (błąd
+ * walidacji). Zdjęcia logo przepuszczamy tylko z naszego folderu zleceń.
+ */
 function readLogos(formData: FormData): unknown {
+  let raw: unknown;
+
   try {
-    return JSON.parse(fieldValue(formData, "logos") || "[]");
+    raw = JSON.parse(fieldValue(formData, "logos") || "[]");
   } catch {
     return [];
   }
+
+  if (!Array.isArray(raw)) return [];
+
+  return raw.map((logo) => {
+    if (typeof logo !== "object" || logo === null) return logo;
+
+    const photos = (logo as { photos?: unknown }).photos;
+    const parsed = z.array(uploadedPhotoSchema).safeParse(Array.isArray(photos) ? photos : []);
+
+    return { ...logo, photos: parsed.success ? parsed.data.filter(isOrderUpload) : [] };
+  });
 }
 
-/** Logo do zapisu w bazie, z kolejnością z formularza. */
-export function logoRows(logos: { kind: "HAFT" | "DTF"; placement: OrderPlacementValue | null; description: string | null }[]) {
-  return logos.map((logo, position) => ({ ...logo, position }));
+/** Logo do zapisu w bazie (zagnieżdżone `create`), z kolejnością z formularza i ze zdjęciami. */
+export function logoRows(logos: OrderLogoData[]) {
+  return logos.map(({ photos, ...logo }, position) => ({
+    ...logo,
+    position,
+    photos: {
+      create: (photos ?? []).map(({ url, pathname, filename, sizeBytes }, index) => ({
+        url,
+        pathname,
+        filename,
+        sizeBytes,
+        position: index,
+      })),
+    },
+  }));
 }
 
 export function readTemplateForm(formData: FormData) {
@@ -97,7 +127,13 @@ export async function removeUnusedOrderFiles(files: StoredFile[]) {
     prisma.orderPhoto.findMany({ where: { pathname: { in: pathnames } }, select: { pathname: true } }),
     prisma.orderTemplatePhoto.findMany({ where: { pathname: { in: pathnames } }, select: { pathname: true } }),
   ]);
-  const used = new Set([...inOrders, ...inTemplates].map((row) => row.pathname));
+  const [inOrderLogos, inTemplateLogos] = await Promise.all([
+    prisma.orderLogoPhoto.findMany({ where: { pathname: { in: pathnames } }, select: { pathname: true } }),
+    prisma.orderTemplateLogoPhoto.findMany({ where: { pathname: { in: pathnames } }, select: { pathname: true } }),
+  ]);
+  const used = new Set(
+    [...inOrders, ...inTemplates, ...inOrderLogos, ...inTemplateLogos].map((row) => row.pathname),
+  );
   const seen = new Set<string>();
 
   await removeFiles(
@@ -107,6 +143,28 @@ export async function removeUnusedOrderFiles(files: StoredFile[]) {
       return true;
     }),
   );
+}
+
+const FILE = { select: { url: true, pathname: true } } as const;
+
+/** Wszystkie pliki zleceń (zdjęcia asortymentu i logo) — do sprzątania po usunięciu. */
+export async function orderFiles(where: Prisma.EmbroideryOrderWhereInput): Promise<StoredFile[]> {
+  const [photos, logoPhotos] = await Promise.all([
+    prisma.orderPhoto.findMany({ where: { order: where }, ...FILE }),
+    prisma.orderLogoPhoto.findMany({ where: { logo: { order: where } }, ...FILE }),
+  ]);
+
+  return [...photos, ...logoPhotos];
+}
+
+/** Wszystkie pliki szablonów (zdjęcia asortymentu i logo). */
+export async function templateFiles(where: Prisma.OrderTemplateWhereInput): Promise<StoredFile[]> {
+  const [photos, logoPhotos] = await Promise.all([
+    prisma.orderTemplatePhoto.findMany({ where: { template: where }, ...FILE }),
+    prisma.orderTemplateLogoPhoto.findMany({ where: { logo: { template: where } }, ...FILE }),
+  ]);
+
+  return [...photos, ...logoPhotos];
 }
 
 export function readOrderForm(formData: FormData) {
@@ -130,7 +188,7 @@ export async function notifyNewOrder(orderId: string, origin: string) {
     include: {
       client: { select: { name: true, company: true } },
       photos: true,
-      logos: { orderBy: { position: "asc" } },
+      logos: LOGO_QUERY,
     },
   });
 
@@ -145,18 +203,22 @@ export async function notifyNewOrder(orderId: string, origin: string) {
     ["Uwagi", order.notes ?? "—"],
   ];
   const link = `${origin}/zlecenia/${order.id}`;
-  const photoUrls = order.photos.map((photo) =>
-    photo.url.startsWith("/") ? `${origin}${photo.url}` : photo.url,
-  );
+  const absolute = (url: string) => (url.startsWith("/") ? `${origin}${url}` : url);
+  const photoUrls = order.photos.map((photo) => absolute(photo.url));
+  const logoPhotos = order.logos.map((logo) => logo.photos.map((photo) => absolute(photo.url)));
   const escape = (value: string) =>
     value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  const img = (url: string) =>
+    `<p><a href="${escape(url)}"><img src="${escape(url)}" alt="" style="max-width:320px"></a></p>`;
 
   const text = [
     `Nowe zlecenie ${orderNumber(order.number)}`,
     "",
     ...rows.map(([label, value]) => `${label}: ${value}`),
     "",
-    photoUrls.length > 0 ? `Zdjęcia:\n${photoUrls.join("\n")}` : "Bez zdjęć.",
+    photoUrls.length > 0 ? `Zdjęcia asortymentu:\n${photoUrls.join("\n")}` : "Bez zdjęć asortymentu.",
+    ...logoPhotos.flatMap((urls, index) => (urls.length > 0 ? [`Logo ${index + 1}:\n${urls.join("\n")}`] : [])),
     "",
     `Szczegóły: ${link}`,
   ].join("\n");
@@ -165,7 +227,8 @@ export async function notifyNewOrder(orderId: string, origin: string) {
 <table cellpadding="4">${rows
     .map(([label, value]) => `<tr><td><b>${escape(label)}</b></td><td>${escape(value)}</td></tr>`)
     .join("")}</table>
-${photoUrls.map((url) => `<p><a href="${escape(url)}"><img src="${escape(url)}" alt="" style="max-width:320px"></a></p>`).join("")}
+${photoUrls.length > 0 ? "<h3>Zdjęcia asortymentu</h3>" : ""}${photoUrls.map(img).join("")}
+${logoPhotos.map((urls, index) => (urls.length > 0 ? `<h3>Logo ${index + 1}</h3>${urls.map(img).join("")}` : "")).join("")}
 <p><a href="${escape(link)}">Otwórz zlecenie w bazie haftów</a></p>`;
 
   try {

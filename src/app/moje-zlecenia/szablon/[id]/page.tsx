@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { OrderDetails } from "@/components/order-details";
 import { requireClient } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { LOGO_QUERY } from "@/lib/orders";
 
 import { createOrderFromTemplate } from "../../actions";
 import { QuantityForm } from "./quantity-form";
@@ -19,7 +20,7 @@ export default async function TemplateOrderPage(props: PageProps<"/moje-zlecenia
     where: { id, clientId: user.clientId },
     include: {
       photos: { orderBy: { position: "asc" } },
-      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+      logos: LOGO_QUERY,
     },
   });
 

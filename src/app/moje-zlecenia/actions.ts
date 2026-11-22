@@ -7,6 +7,7 @@ import { after } from "next/server";
 
 import { requireClient } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { LOGO_QUERY } from "@/lib/orders";
 import { logoRows, notifyNewOrder, readOrderForm } from "@/lib/orders-server";
 import { orderQuantitySchema, toFormState, type FormState } from "@/lib/validation";
 
@@ -72,7 +73,7 @@ export async function createOrderFromTemplate(
     where: { id: templateId, clientId: user.clientId },
     include: {
       photos: { orderBy: { position: "asc" } },
-      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+      logos: LOGO_QUERY,
     },
   });
 

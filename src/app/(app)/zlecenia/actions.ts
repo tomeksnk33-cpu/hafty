@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { requireEmbroideryUser, requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ORDER_STATUSES, type OrderStatusValue } from "@/lib/orders";
-import { removeUnusedOrderFiles } from "@/lib/orders-server";
+import { orderFiles, removeUnusedOrderFiles } from "@/lib/orders-server";
 
 function refresh(id: string) {
   revalidatePath("/zlecenia");
@@ -30,10 +30,7 @@ export async function setOrderStatus(id: string, status: OrderStatusValue) {
 export async function deleteOrder(id: string) {
   await requireManager();
 
-  const photos = await prisma.orderPhoto.findMany({
-    where: { orderId: id },
-    select: { url: true, pathname: true },
-  });
+  const photos = await orderFiles({ id });
 
   await prisma.embroideryOrder.deleteMany({ where: { id } });
   await removeUnusedOrderFiles(photos);

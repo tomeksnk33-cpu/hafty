@@ -5,13 +5,7 @@ import { OrderStatusBadge } from "@/components/order-details";
 import { requireEmbroideryUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
-import {
-  ORDER_STATUS_LABEL,
-  ORDER_STATUSES,
-  type OrderStatusValue,
-  orderNumber,
-  logosText,
-} from "@/lib/orders";
+import { LOGO_QUERY, logosText, ORDER_STATUS_LABEL, ORDER_STATUSES, orderNumber, type OrderStatusValue } from "@/lib/orders";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +27,7 @@ export default async function OrdersPage(props: PageProps<"/zlecenia">) {
       include: {
         client: { select: { id: true, name: true, company: true } },
         _count: { select: { photos: true } },
-        logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+        logos: LOGO_QUERY,
       },
     }),
     prisma.embroideryOrder.groupBy({ by: ["status"], _count: { _all: true } }),

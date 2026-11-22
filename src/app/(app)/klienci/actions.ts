@@ -8,7 +8,7 @@ import { Role } from "@/generated/prisma/enums";
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { hashPassword, passwordProblem } from "@/lib/passwords";
-import { removeUnusedOrderFiles } from "@/lib/orders-server";
+import { orderFiles, removeUnusedOrderFiles, templateFiles } from "@/lib/orders-server";
 import {
   clientAccountSchema,
   clientSchema,
@@ -79,11 +79,8 @@ export async function deleteClient(id: string) {
   await requireManager();
 
   const [orderPhotos, templatePhotos] = await Promise.all([
-    prisma.orderPhoto.findMany({ where: { order: { clientId: id } }, select: { url: true, pathname: true } }),
-    prisma.orderTemplatePhoto.findMany({
-      where: { template: { clientId: id } },
-      select: { url: true, pathname: true },
-    }),
+    orderFiles({ clientId: id }),
+    templateFiles({ clientId: id }),
   ]);
 
   await prisma.client.delete({ where: { id } });

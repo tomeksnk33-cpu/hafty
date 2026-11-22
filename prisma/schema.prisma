@@ -635,7 +635,8 @@ model OrderLogo {
   placement   OrderPlacement?
   description String?
 
-  order EmbroideryOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order  EmbroideryOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  photos OrderLogoPhoto[]
 
   @@index([orderId, position])
 }
@@ -649,7 +650,38 @@ model OrderTemplateLogo {
   placement   OrderPlacement?
   description String?
 
-  template OrderTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  template OrderTemplate            @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  photos   OrderTemplateLogoPhoto[]
 
   @@index([templateId, position])
+}
+
+/// Zdjęcie (wzór) logo w zleceniu. Pliki mogą być wspólne z szablonem.
+model OrderLogoPhoto {
+  id        String @id @default(cuid())
+  logoId    String
+  url       String
+  pathname  String
+  filename  String
+  sizeBytes Int
+  position  Int    @default(0)
+
+  logo OrderLogo @relation(fields: [logoId], references: [id], onDelete: Cascade)
+
+  @@index([logoId])
+}
+
+/// Zdjęcie (wzór) logo w szablonie zlecenia.
+model OrderTemplateLogoPhoto {
+  id        String @id @default(cuid())
+  logoId    String
+  url       String
+  pathname  String
+  filename  String
+  sizeBytes Int
+  position  Int    @default(0)
+
+  logo OrderTemplateLogo @relation(fields: [logoId], references: [id], onDelete: Cascade)
+
+  @@index([logoId])
 }

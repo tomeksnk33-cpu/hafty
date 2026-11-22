@@ -221,6 +221,18 @@ const logoSchema = z
     kind: z.enum(["HAFT", "DTF"], "Wybierz rodzaj logo: haft albo DTF"),
     placement: z.enum(["PLECY", "PRZOD_LEWY", "PRZOD_PRAWY", "REKAW"]).nullable(),
     description: optionalText(1000),
+    /** Już sprawdzone w lib/orders-server.ts (tylko pliki z naszego uploadu zleceń). */
+    photos: z
+      .array(
+        z.object({
+          url: z.string().min(1).max(2000),
+          pathname: z.string().min(1).max(500),
+          filename: z.string().min(1).max(300),
+          sizeBytes: z.number().int().min(0),
+        }),
+      )
+      .max(5, "Najwyżej 5 zdjęć przy jednym logo")
+      .default([]),
   })
   .refine((logo) => logo.placement !== null || logo.description !== null, {
     message: "Wybierz miejsce logo albo je opisz",
