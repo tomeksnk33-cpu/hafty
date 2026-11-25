@@ -9,6 +9,7 @@ import { FormError, SubmitButton } from "@/components/form-field";
 import {
   ORDER_KIND_LABEL,
   ORDER_KINDS,
+  ORDER_MAX_LOGO_PHOTOS,
   ORDER_MAX_LOGOS,
   ORDER_MAX_PHOTOS,
   ORDER_PLACEMENT_LABEL,
@@ -34,16 +35,23 @@ function Errors({ errors, name }: { errors?: Record<string, string[]>; name: str
 function OrderPhotos({
   value,
   onChange,
+  max = ORDER_MAX_PHOTOS,
+  noun = "zdjęcie",
+  hint,
 }: {
   value: UploadedFile[];
   onChange: (update: (current: UploadedFile[]) => UploadedFile[]) => void;
+  max?: number;
+  /** „zdjęcie” albo „zdjęcie logo” — na przycisku. */
+  noun?: string;
+  hint: string;
 }) {
   const inputId = useId();
   const { busy, error, handleFiles } = useUploader("zdjecia", (added) =>
-    onChange((current) => [...current, ...added].slice(0, ORDER_MAX_PHOTOS)),
+    onChange((current) => [...current, ...added].slice(0, max)),
     "zlecenia",
   );
-  const full = value.length >= ORDER_MAX_PHOTOS;
+  const full = value.length >= max;
 
   return (
     <div>
@@ -72,7 +80,7 @@ function OrderPhotos({
           className="btn-secondary cursor-pointer px-5 py-3 text-base"
           aria-disabled={busy}
         >
-          📷 {busy ? "Wysyłam…" : value.length > 0 ? "Dodaj kolejne zdjęcie" : "Dodaj zdjęcie"}
+          📷 {busy ? "Wysyłam…" : value.length > 0 ? `Dodaj kolejne ${noun}` : `Dodaj ${noun}`}
         </label>
       )}
 
@@ -90,8 +98,7 @@ function OrderPhotos({
       />
 
       <p className="field-hint">
-        Zdjęcie asortymentu (np. koszulki, czapki). Można zrobić je telefonem — zostanie zmniejszone automatycznie.
-        Najwyżej {ORDER_MAX_PHOTOS} zdjęć.
+        {hint} Najwyżej {max} zdjęć.
       </p>
 
       {error ? <p className="field-error">{error}</p> : null}
@@ -107,12 +114,14 @@ type LogoDraft = {
   kind: LogoKind | "";
   placement: OrderPlacementValue | "INNE" | "";
   description: string;
+  photos: UploadedFile[];
 };
 
 export type OrderLogoDefaults = {
   kind: LogoKind;
   placement: OrderPlacementValue | null;
   description: string | null;
+  photos?: UploadedFile[];
 };
 
 /** Pola zapisanego szablonu — do edycji. */
@@ -124,18 +133,23 @@ export type OrderTemplateDefaults = {
   photos: UploadedFile[];
 };
 
-let nextKey = 1;
-
-function emptyLogo(): LogoDraft {
-  return { key: nextKey++, kind: "", placement: "", description: "" };
+// Klucze liczone od zera w każdym formularzu (nie globalny licznik), żeby
+// HTML z serwera i z przeglądarki miał te same id pól.
+function emptyLogo(key: number): LogoDraft {
+  return { key, kind: "", placement: "", description: "", photos: [] };
 }
 
-function toDraft(logo: OrderLogoDefaults): LogoDraft {
+function nextKey(logos: LogoDraft[]) {
+  return logos.reduce((max, logo) => Math.max(max, logo.key), -1) + 1;
+}
+
+function toDraft(logo: OrderLogoDefaults, key: number): LogoDraft {
   return {
-    key: nextKey++,
+    key,
     kind: logo.kind,
     placement: logo.placement ?? "INNE",
     description: logo.description ?? "",
+    photos: logo.photos ?? [],
   };
 }
 
@@ -146,6 +160,7 @@ function serializeLogos(logos: LogoDraft[]) {
       kind: logo.kind,
       placement: logo.placement === "" || logo.placement === "INNE" ? null : logo.placement,
       description: logo.description,
+      photos: logo.photos,
     })),
   );
 }
@@ -161,6 +176,7 @@ function LogoCard({
   canRemove,
   errors,
   onChange,
+  onPhotos,
   onRemove,
 }: {
   logo: LogoDraft;
@@ -168,6 +184,7 @@ function LogoCard({
   canRemove: boolean;
   errors?: Record<string, string[]>;
   onChange: (patch: Partial<LogoDraft>) => void;
+  onPhotos: (update: (current: UploadedFile[]) => UploadedFile[]) => void;
   onRemove: () => void;
 }) {
   const descriptionId = `logo-${logo.key}-opis`;
@@ -235,6 +252,17 @@ function LogoCard({
         placeholder="np. logo firmy 8 cm, napis „Przedszkole nr 4” pod kołnierzem"
       />
 
+      <div className="mt-4">
+        <p className="mb-2 text-sm font-medium text-muted">Zdjęcie logo (wzór)</p>
+        <OrderPhotos
+          value={logo.photos}
+          onChange={(update) => onPhotos(update)}
+          max={ORDER_MAX_LOGO_PHOTOS}
+          noun="zdjęcie logo"
+          hint="Zdjęcie albo zrzut ekranu wzoru tego logo."
+        />
+      </div>
+
       {messages.map((message) => (
         <p key={message} className="field-error text-sm">
           {message}
@@ -266,7 +294,7 @@ export function OrderForm({
   const { state, onSubmit, pending } = useFormSubmit(action);
   const [photos, setPhotos] = useState<UploadedFile[]>(defaults?.photos ?? []);
   const [logos, setLogos] = useState<LogoDraft[]>(() =>
-    defaults && defaults.logos.length > 0 ? defaults.logos.map(toDraft) : [emptyLogo()],
+    defaults && defaults.logos.length > 0 ? defaults.logos.map(toDraft) : [emptyLogo(0)],
   );
   const errors = state?.errors;
 
@@ -314,7 +342,12 @@ export function OrderForm({
         <Errors errors={errors} name="product" />
 
         <div className="mt-4">
-          <OrderPhotos value={photos} onChange={setPhotos} />
+          <p className="mb-2 text-sm font-medium text-muted">Zdjęcie asortymentu</p>
+          <OrderPhotos
+            value={photos}
+            onChange={setPhotos}
+            hint="Zdjęcie samej odzieży (np. koszulki, czapki). Można zrobić je telefonem — zostanie zmniejszone automatycznie."
+          />
           <input type="hidden" name="photos" value={JSON.stringify(photos)} />
         </div>
       </section>
@@ -334,6 +367,11 @@ export function OrderForm({
               canRemove={logos.length > 1}
               errors={errors}
               onChange={(patch) => updateLogo(logo.key, patch)}
+              onPhotos={(update) =>
+                setLogos((current) =>
+                  current.map((item) => (item.key === logo.key ? { ...item, photos: update(item.photos) } : item)),
+                )
+              }
               onRemove={() => setLogos((current) => current.filter((item) => item.key !== logo.key))}
             />
           ))}
@@ -344,7 +382,7 @@ export function OrderForm({
         {logos.length < ORDER_MAX_LOGOS ? (
           <button
             type="button"
-            onClick={() => setLogos((current) => [...current, emptyLogo()])}
+            onClick={() => setLogos((current) => [...current, emptyLogo(nextKey(current))])}
             className="mt-4 w-full rounded-xl border-2 border-dashed border-line px-4 py-4 text-lg font-medium text-accent hover:border-accent/50 hover:bg-accent-soft"
           >
             + Dodaj kolejne logo

@@ -48,11 +48,31 @@ export const ORDER_MAX_LOGOS = 20;
 /** Krótka nazwa rodzaju na liście logo. */
 export const ORDER_KIND_SHORT: Record<OrderKindValue, string> = { HAFT: "Haft", DTF: "DTF" };
 
+/** Najwięcej zdjęć (wzorów) przy jednym logo. */
+export const ORDER_MAX_LOGO_PHOTOS = 5;
+
+export type OrderPhotoData = { url: string; pathname: string; filename: string; sizeBytes: number };
+
 export type OrderLogoData = {
   kind: OrderKindValue;
   placement: OrderPlacementValue | null;
   description: string | null;
+  photos?: OrderPhotoData[];
 };
+
+/** Jak pobierać logo zlecenia/szablonu z bazy — razem z ich zdjęciami. */
+export const LOGO_QUERY = {
+  orderBy: { position: "asc" },
+  select: {
+    kind: true,
+    placement: true,
+    description: true,
+    photos: {
+      orderBy: { position: "asc" },
+      select: { url: true, pathname: true, filename: true, sizeBytes: true },
+    },
+  },
+} as const;
 
 /** Jedno logo jako tekst, np. „Haft: Przód lewy (logo 8 cm)”. */
 export function logoText(logo: OrderLogoData) {
@@ -90,7 +110,7 @@ export function templateItem(
     id: template.id,
     name: template.name,
     href,
-    photoUrl: template.photos[0]?.url ?? null,
+    photoUrl: template.photos[0]?.url ?? template.logos.find((logo) => logo.photos?.length)?.photos?.[0]?.url ?? null,
     subtitle,
     searchText: [
       template.name,

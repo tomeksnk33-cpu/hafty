@@ -22,8 +22,9 @@ Klient z bazy haftów może dostać własne konto i sam składać zlecenia.
   pracowników — sprawdza to serwer (`lib/auth.ts`, konto z `clientId`).
 - Zlecenie: najpierw asortyment ze zdjęciami (do 10), potem dowolnie wiele logo —
   każde z rodzajem (haft albo DTF), miejscem (plecy, przód lewy, przód prawy, rękaw
-  albo inne) i opisem; na końcu ilość i uwagi. Logo są w tabelach `OrderLogo`
-  i `OrderTemplateLogo`. Klient widzi
+  albo inne), opisem i własnymi zdjęciami wzoru (do 5, osobno od zdjęć
+  asortymentu); na końcu ilość i uwagi. Logo są w tabelach `OrderLogo`
+  i `OrderTemplateLogo`, ich zdjęcia w `OrderLogoPhoto` i `OrderTemplateLogoPhoto`. Klient widzi
   tylko swoje zlecenia i ich etap; może wycofać zlecenie, dopóki jest „Nowe”.
 - Pracownicy bazy haftów mają zakładkę **Zlecenia**: lista z filtrem etapu,
   szczegóły ze zdjęciami i zmiana etapu (Nowe, W realizacji, Gotowe, Anulowane).

@@ -5,7 +5,7 @@ import { ConfirmAction } from "@/components/confirm-action";
 import { OrderDetails, OrderStatusBadge } from "@/components/order-details";
 import { requireClient } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { orderNumber } from "@/lib/orders";
+import { LOGO_QUERY, orderNumber } from "@/lib/orders";
 
 import { cancelOwnOrder } from "../actions";
 import { saveOrderAsTemplate } from "../szablony/actions";
@@ -22,7 +22,7 @@ export default async function MyOrderPage(props: PageProps<"/moje-zlecenia/[id]"
     where: { id, clientId: user.clientId },
     include: {
       photos: { orderBy: { position: "asc" } },
-      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+      logos: LOGO_QUERY,
     },
   });
 

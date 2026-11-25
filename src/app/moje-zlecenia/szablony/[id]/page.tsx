@@ -5,6 +5,7 @@ import { ConfirmAction } from "@/components/confirm-action";
 import { OrderForm } from "@/components/order-form";
 import { requireClient } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { LOGO_QUERY } from "@/lib/orders";
 
 import { deleteOwnTemplate, updateOwnTemplate } from "../actions";
 
@@ -20,7 +21,7 @@ export default async function EditOwnTemplatePage(props: PageProps<"/moje-zlecen
     where: { id, clientId: user.clientId },
     include: {
       photos: { orderBy: { position: "asc" } },
-      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+      logos: LOGO_QUERY,
     },
   });
 

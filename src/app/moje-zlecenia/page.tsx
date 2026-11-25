@@ -4,7 +4,7 @@ import { OrderStatusBadge } from "@/components/order-details";
 import { requireClient } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
-import { logosText, orderNumber } from "@/lib/orders";
+import { LOGO_QUERY, logosText, orderNumber } from "@/lib/orders";
 
 import { TemplateTiles } from "./template-tiles";
 
@@ -21,7 +21,7 @@ export default async function MyOrdersPage() {
       id: true,
       number: true,
       product: true,
-      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+      logos: LOGO_QUERY,
       quantity: true,
       status: true,
       createdAt: true,

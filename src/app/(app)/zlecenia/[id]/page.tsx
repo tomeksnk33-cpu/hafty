@@ -5,7 +5,7 @@ import { ConfirmAction } from "@/components/confirm-action";
 import { OrderDetails, OrderStatusBadge } from "@/components/order-details";
 import { requireEmbroideryUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { ORDER_STATUS_LABEL, ORDER_STATUSES, orderNumber } from "@/lib/orders";
+import { LOGO_QUERY, ORDER_STATUS_LABEL, ORDER_STATUSES, orderNumber } from "@/lib/orders";
 
 import { deleteOrder, setOrderStatus } from "../actions";
 
@@ -19,7 +19,7 @@ export default async function OrderPage(props: PageProps<"/zlecenia/[id]">) {
     where: { id },
     include: {
       photos: { orderBy: { position: "asc" } },
-      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+      logos: LOGO_QUERY,
       client: { select: { id: true, name: true, company: true, phone: true, email: true } },
       createdBy: { select: { name: true } },
       template: { select: { name: true } },

@@ -5,6 +5,7 @@ import { ConfirmAction } from "@/components/confirm-action";
 import { OrderForm } from "@/components/order-form";
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { LOGO_QUERY } from "@/lib/orders";
 import { plural } from "@/lib/format";
 
 import { deleteTemplate, updateTemplate } from "../actions";
@@ -18,7 +19,7 @@ export default async function EditTemplatePage(props: PageProps<"/klienci/[id]/s
     include: {
       client: { select: { id: true, name: true } },
       photos: { orderBy: { position: "asc" } },
-      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+      logos: LOGO_QUERY,
       _count: { select: { orders: true } },
     },
   });

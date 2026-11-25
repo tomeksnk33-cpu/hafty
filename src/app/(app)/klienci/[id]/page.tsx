@@ -10,7 +10,7 @@ import { RealizationCard, realizationCardSelect } from "@/components/realization
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDate, formatMoney, plural } from "@/lib/format";
-import { logosText, orderNumber, templateItem } from "@/lib/orders";
+import { LOGO_QUERY, logosText, orderNumber, templateItem } from "@/lib/orders";
 
 import { deleteClient, saveClientAccount, setClientAccountActive } from "../actions";
 import { ClientAccountForm } from "./client-account";
@@ -27,7 +27,7 @@ export default async function ClientSummaryPage(props: PageProps<"/klienci/[id]"
         orderBy: { name: "asc" },
         include: {
           photos: { orderBy: { position: "asc" }, take: 1, select: { url: true } },
-          logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+          logos: LOGO_QUERY,
         },
       },
       orders: {
@@ -40,7 +40,7 @@ export default async function ClientSummaryPage(props: PageProps<"/klienci/[id]"
           quantity: true,
           status: true,
           createdAt: true,
-          logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+          logos: LOGO_QUERY,
         },
       },
     },

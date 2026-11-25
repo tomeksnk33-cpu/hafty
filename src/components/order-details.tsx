@@ -35,20 +35,39 @@ export function OrderDetails({ order }: { order: OrderDetailsData }) {
     ["Asortyment", order.product],
     [
       order.logos.length === 1 ? "Logo" : `Logo (${order.logos.length})`,
-      <ol key="logo" className="space-y-1">
+      <ol key="logo" className="space-y-3">
         {order.logos.map((logo, index) => (
-          <li key={index} className="flex flex-wrap items-baseline gap-2">
-            <span
-              className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
-                logo.kind === "DTF" ? "bg-[#e0f2fe] text-[#075985]" : "bg-accent-soft text-accent"
-              }`}
-            >
-              {ORDER_KIND_SHORT[logo.kind]}
-            </span>
-            <span>
-              {logo.placement ? ORDER_PLACEMENT_LABEL[logo.placement] : "Inne miejsce"}
-              {logo.description ? <span className="font-normal text-muted"> — {logo.description}</span> : null}
-            </span>
+          <li key={index}>
+            <div className="flex flex-wrap items-baseline gap-2">
+              <span
+                className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
+                  logo.kind === "DTF" ? "bg-[#e0f2fe] text-[#075985]" : "bg-accent-soft text-accent"
+                }`}
+              >
+                {ORDER_KIND_SHORT[logo.kind]}
+              </span>
+              <span>
+                {logo.placement ? ORDER_PLACEMENT_LABEL[logo.placement] : "Inne miejsce"}
+                {logo.description ? <span className="font-normal text-muted"> — {logo.description}</span> : null}
+              </span>
+            </div>
+            {logo.photos && logo.photos.length > 0 ? (
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {logo.photos.map((photo) => (
+                  <li key={photo.pathname}>
+                    <a
+                      href={photo.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="relative block size-24 overflow-hidden rounded-lg border border-line bg-paper"
+                      title={`Logo ${index + 1}: ${photo.filename}`}
+                    >
+                      <Image src={photo.url} alt={`Wzór logo ${index + 1}`} fill sizes="96px" className="object-contain" />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </li>
         ))}
       </ol>,

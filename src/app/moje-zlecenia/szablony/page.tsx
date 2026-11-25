@@ -3,7 +3,7 @@ import Link from "next/link";
 import { TemplateSearch } from "@/components/template-search";
 import { requireClient } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { templateItem } from "@/lib/orders";
+import { LOGO_QUERY, templateItem } from "@/lib/orders";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ export default async function MyTemplatesPage(props: PageProps<"/moje-zlecenia/s
     orderBy: { name: "asc" },
     include: {
       photos: { orderBy: { position: "asc" }, take: 1, select: { url: true } },
-      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+      logos: LOGO_QUERY,
     },
   });
 

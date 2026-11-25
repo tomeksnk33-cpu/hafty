@@ -1,7 +1,8 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
-import { logoRows, readTemplateForm, removeUnusedOrderFiles } from "@/lib/orders-server";
+import { LOGO_QUERY } from "@/lib/orders";
+import { logoRows, readTemplateForm, removeUnusedOrderFiles, templateFiles } from "@/lib/orders-server";
 import { toFormState, type FormState } from "@/lib/validation";
 
 /**
@@ -35,10 +36,12 @@ export async function saveTemplate(
 
   const template = await prisma.orderTemplate.findFirst({
     where: { id: templateId, clientId },
-    select: { photos: { select: { url: true, pathname: true } } },
+    select: { id: true },
   });
 
   if (!template) return { message: "Ten szablon już nie istnieje." };
+
+  const oldFiles = await templateFiles({ id: templateId });
 
   await prisma.$transaction([
     prisma.orderTemplatePhoto.deleteMany({ where: { templateId } }),
@@ -50,17 +53,14 @@ export async function saveTemplate(
   ]);
 
   // Zdjęcia usunięte z szablonu — chyba że używa ich któreś zlecenie.
-  await removeUnusedOrderFiles(template.photos);
+  await removeUnusedOrderFiles(oldFiles);
 
   return null;
 }
 
 /** Usuwa szablon klienta. Złożone z niego zlecenia zostają razem ze zdjęciami. */
 export async function removeTemplate(clientId: string, templateId: string) {
-  const photos = await prisma.orderTemplatePhoto.findMany({
-    where: { templateId, template: { clientId } },
-    select: { url: true, pathname: true },
-  });
+  const photos = await templateFiles({ id: templateId, clientId });
 
   await prisma.orderTemplate.deleteMany({ where: { id: templateId, clientId } });
   await removeUnusedOrderFiles(photos);
@@ -75,7 +75,7 @@ export async function templateFromOrder(clientId: string, orderId: string) {
     where: { id: orderId, clientId },
     include: {
       photos: { orderBy: { position: "asc" } },
-      logos: { orderBy: { position: "asc" }, select: { kind: true, placement: true, description: true } },
+      logos: LOGO_QUERY,
     },
   });
 
