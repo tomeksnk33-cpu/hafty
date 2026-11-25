@@ -159,13 +159,15 @@ function parseItems(text) {
 // ---------- speech ----------
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null, running = false, speaking = false;
+// trzymaj i mów (pedał): stan opisany niżej, przy obsłudze pedału
+let pttRec = null, pttHeld = false, pttLive = false, pttBusy = false, pttParts = [], pttInterim = null, pttAssigning = false;
 let mode = "client"; // client | items
 let currentClient = null;
 
 function plVoice() { return "speechSynthesis" in window ? speechSynthesis.getVoices().find(v => /^pl/i.test(v.lang)) : null; }
 function say(text, { thenListen = true } = {}) {
   return new Promise(res => {
-    if (!("speechSynthesis" in window)) { res(); return; }
+    if (!("speechSynthesis" in window) || pttHeld) { res(); return; } // pedał wciśnięty: nie zagłuszamy mówiącego
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text); u.lang = "pl-PL"; const v = plVoice(); if (v) u.voice = v; u.rate = 1.05;
     speaking = true; try { rec && rec.abort(); } catch (e) {}
@@ -195,9 +197,19 @@ function setupRec() {
 // ---------- dialogue ----------
 function log(msg, cls = "") { const d = document.createElement("div"); d.className = cls; d.textContent = new Date().toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }) + "  " + msg; $("#log").prepend(d); }
 function ui() {
+  if (local.ptt) {
+    $("#mic").textContent = pttHeld ? (pttLive ? "🔴 Słucham… puść, gdy skończysz" : "⏳ Włączam mikrofon…") : "🎤 Trzymaj i mów" + (local.pttKey ? " (albo pedał)" : "");
+    $("#mic").classList.toggle("stop", pttHeld);
+    $("#mic").classList.toggle("pulse", pttHeld && pttLive);
+    $("#pttBadge").hidden = !pttHeld;
+    $("#pttBadge").textContent = pttLive ? "🔴 Słucham…" : "⏳ Włączam mikrofon…";
+    $("#pttBadge").classList.toggle("live", pttLive);
+  } else {
   $("#mic").textContent = running ? "⏹ Zatrzymaj słuchanie" : "🎤 Wpisuj głosem";
   $("#mic").classList.toggle("stop", running);
   $("#mic").classList.toggle("pulse", running);
+  $("#pttBadge").hidden = true;
+  }
   $("#state").innerHTML = mode === "client" ? "Czekam na <b>nazwę klienta</b>" : "Klient: podaj <b>asortyment i ilość</b>";
   $("#current").textContent = currentClient ? currentClient.name : "";
   renderClientGeo(); renderTouch();
@@ -466,7 +478,93 @@ function start() {
   say(mode === "client" ? "Podaj klienta" : "Podaj asortyment");
 }
 function stop() { running = false; try { rec && rec.abort(); } catch (e) {} ui(); }
-$("#mic").onclick = () => running ? stop() : start();
+$("#mic").onclick = () => { if (!local.ptt) running ? stop() : start(); };
+
+// ---------- trzymaj i mów (pedał nożny / przycisk) ----------
+// Program słucha tylko wtedy, gdy wciśnięty jest przypisany klawisz (np. pedał USB ustawiony na F9)
+// albo przytrzymany palcem duży przycisk na ekranie. Po puszczeniu przetwarza to, co usłyszał.
+// Ustawienie i klawisz są zapamiętane w tej przeglądarce (na tym komputerze).
+const keyName = k => !k ? "" : k.code === "Space" ? "Spacja" : (k.key && k.key.length === 1 ? k.key.toUpperCase() : (k.key || k.code));
+function setupPttRec() {
+  const r = new SR(); r.lang = "pl-PL"; r.interimResults = true; r.continuous = true; r.maxAlternatives = 3;
+  r.onaudiostart = () => { pttLive = true; ui(); };
+  r.onresult = e => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const res = e.results[i];
+      if (res.isFinal) { pttParts.push([...res].map(a => a.transcript)); pttInterim = null; }
+      else pttInterim = [res[0].transcript];
+    }
+    const shown = pttParts.map(p => p[0]).concat(pttInterim || []).join(" … ");
+    if (shown) $("#heard").textContent = "„" + shown + "”";
+  };
+  r.onerror = e => {
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") { pttHeld = false; log("Brak dostępu do mikrofonu. Zezwól w ustawieniach przeglądarki.", "bad"); }
+  };
+  r.onend = () => {
+    pttBusy = false; pttLive = false;
+    if (pttHeld) { try { r.start(); pttBusy = true; } catch (e) {} ui(); return; } // przeglądarka sama przerwała, a pedał wciąż wciśnięty
+    ui(); pttProcess();
+  };
+  return r;
+}
+function pttDown() {
+  if (pttHeld) return;
+  if (!SR) { bigAlert("Ta przeglądarka nie obsługuje rozpoznawania mowy. Użyj Chrome."); return; }
+  if (running) stop();
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  speaking = false;
+  if (!pttRec) pttRec = setupPttRec();
+  pttHeld = true; pttLive = false; pttParts = []; pttInterim = null;
+  $("#heard").textContent = "";
+  if (!pttBusy) { try { pttRec.start(); pttBusy = true; } catch (e) {} }
+  ui();
+}
+function pttUp() {
+  if (!pttHeld) return;
+  pttHeld = false; ui();
+  try { pttRec.stop(); } catch (e) { pttBusy = false; pttProcess(); } // stop() oddaje jeszcze to, co zostało powiedziane do puszczenia
+}
+async function pttProcess() {
+  const parts = pttParts.length ? pttParts : (pttInterim ? [pttInterim] : []);
+  pttParts = []; pttInterim = null;
+  if (!parts.length) { log("Nic nie usłyszałem – trzymaj przycisk, mów, a puść dopiero po ostatnim słowie.", "warn"); return; }
+  for (const alts of parts) { if (pttHeld) break; await handle(alts); }
+}
+const isPttKey = e => local.ptt && local.pttKey && (e.code ? e.code === local.pttKey.code : e.key === local.pttKey.key);
+const voiceVisible = () => $("#magazyn").classList.contains("on") && !$("#voiceBox").hidden && local.canStock !== false;
+document.addEventListener("keydown", e => {
+  if (pttAssigning) {
+    if (e.key === "Escape") { pttAssigning = false; renderPttSettings(); return; }
+    e.preventDefault(); e.stopPropagation();
+    local.pttKey = { code: e.code || "", key: e.key || "" }; pttAssigning = false; save(); renderPttSettings(); ui();
+    return;
+  }
+  if (!isPttKey(e) || !voiceVisible()) return;
+  e.preventDefault(); e.stopPropagation();
+  if (!e.repeat) pttDown();
+}, true);
+document.addEventListener("keyup", e => {
+  if (!isPttKey(e) || !pttHeld) return;
+  e.preventDefault(); e.stopPropagation(); pttUp();
+}, true);
+window.addEventListener("blur", pttUp); // np. okno straciło fokus z wciśniętym pedałem
+// przytrzymanie dużego przycisku na ekranie dotykowym
+$("#mic").addEventListener("pointerdown", e => { if (!local.ptt) return; e.preventDefault(); try { $("#mic").setPointerCapture(e.pointerId); } catch (x) {} pttDown(); });
+["pointerup", "pointercancel", "lostpointercapture"].forEach(ev => $("#mic").addEventListener(ev, () => { if (local.ptt) pttUp(); }));
+$("#mic").addEventListener("contextmenu", e => { if (local.ptt) e.preventDefault(); });
+function renderPttSettings() {
+  $("#sPtt").checked = !!local.ptt;
+  $("#pttKeyRow").hidden = !local.ptt;
+  $("#pttAssign").textContent = pttAssigning ? "Wciśnij teraz pedał… (Esc – anuluj)" : local.pttKey ? "Zmień przycisk" : "Przypisz przycisk";
+  $("#pttAssign").classList.toggle("pulse", pttAssigning);
+  $("#pttKeyName").innerHTML = local.pttKey ? "Przypisany przycisk: <b>" + esc(keyName(local.pttKey)) + "</b>" : "Nie przypisano jeszcze pedału. Duży przycisk na ekranie działa i bez niego.";
+  $("#pttClear").hidden = !local.pttKey;
+  $("#pttWarn").hidden = !(local.pttKey && local.pttKey.key && local.pttKey.key.length === 1);
+}
+$("#sPtt").onchange = e => { local.ptt = e.target.checked; if (local.ptt && running) stop(); if (!local.ptt) pttUp(); save(); renderPttSettings(); ui(); };
+$("#pttAssign").onclick = () => { pttAssigning = !pttAssigning; renderPttSettings(); };
+$("#pttClear").onclick = () => { local.pttKey = null; save(); renderPttSettings(); ui(); };
+renderPttSettings();
 $("#typedGo").onclick = () => { const v = $("#typed").value.trim(); if (v) { $("#typed").value = ""; handle(v); } };
 $("#typed").onkeydown = e => { if (e.key === "Enter") $("#typedGo").click(); };
 $("#sendNow").onclick = () => finishRoute(false);
