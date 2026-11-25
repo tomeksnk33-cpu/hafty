@@ -57,6 +57,9 @@ td.n{text-align:right;width:70px}
 .list{list-style:none;margin:0;padding:0}
 .small{font-size:13px;color:var(--muted)}
 .pulse{animation:p 1.2s infinite}
+#pttBadge{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:50;padding:12px 28px;border-radius:999px;background:#666;color:#fff;font-size:clamp(20px,2vw,30px);font-weight:700;box-shadow:0 6px 24px rgba(0,0,0,.3);pointer-events:none}
+#pttBadge.live{background:var(--bad);animation:p 1.2s infinite}
+#mic{touch-action:none;user-select:none;-webkit-user-select:none}
 @keyframes p{50%{opacity:.55}}
 h2{font-size:17px;margin:0 0 8px}
 select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;max-width:100%}
@@ -196,6 +199,7 @@ dialog#askDlg::backdrop{background:rgba(0,0,0,.5)}
 <div id="banner"></div>
 
 <!-- MAGAZYN: pracownik pralni wpisuje wyprane pranie (dotykiem albo głosem) -->
+<div id="pttBadge" hidden></div>
 <section id="magazyn" class="on">
   <div class="trasaGrid">
   <div class="trasaMain">
@@ -437,6 +441,13 @@ dialog#askDlg::backdrop{background:rgba(0,0,0,.5)}
   <div class="card" id="voiceSettings">
     <h2>Głos</h2>
     <label><input type="checkbox" id="sRepeat" style="width:auto"> Powtarzaj na głos zapisany asortyment i ilość</label>
+    <label style="margin-top:10px"><input type="checkbox" id="sPtt" style="width:auto"> Mów tylko przy wciśniętym przycisku (pedał nożny albo przytrzymanie przycisku na ekranie)</label>
+    <div id="pttKeyRow" hidden style="margin-top:8px">
+      <div class="row"><button class="btn" id="pttAssign">Przypisz przycisk</button> <button class="btn" id="pttClear" hidden>Usuń przycisk</button></div>
+      <p class="small" id="pttKeyName" style="margin:6px 0 0"></p>
+      <p class="small" id="pttWarn" hidden style="margin:6px 0 0;color:var(--bad)">Pedał wysyła literę – w tej aplikacji nie da się wtedy wpisać jej z klawiatury. Lepiej ustawić w pedale klawisz F9 albo inny klawisz F.</p>
+      <p class="small" style="margin:6px 0 0">Działa w zakładce Magazyn. Trzymaj pedał, powiedz np. „Hotel Pod Lipami”, puść; potem trzymaj i powiedz „ręczniki 20”. Ustawienie zapamiętuje ten komputer.</p>
+    </div>
   </div>
 </section>
 </main>
